@@ -1,5 +1,10 @@
-use std::{env, error::Error, os::unix::net::UnixStream};
+use std::{env, error::Error, io::{Read, Write}, os::unix::net::UnixStream};
 
+struct WlState {
+    socket: UnixStream,
+    current_id: u32,
+    registry_id: u32,
+}
 
 fn wl_connect() -> Result<UnixStream, Box<dyn Error>> {
     let wl_sock_path: String = format!(
@@ -13,7 +18,7 @@ fn wl_connect() -> Result<UnixStream, Box<dyn Error>> {
 }
 
 
-fn wl_display_get_registry(wl_sock: &mut UnixStream, wl_current_id: &mut u32) -> Result<(), Box<dyn Error>> {
+fn wl_display_get_registry(wl_state: &mut WlState) -> Result<(), Box<dyn Error>> {
     const OBJECT: u32 = 1;
     const OPCODE: u16 = 1;
     const MSG_SIZE: u16 = 12;
@@ -23,20 +28,23 @@ fn wl_display_get_registry(wl_sock: &mut UnixStream, wl_current_id: &mut u32) ->
     request[4..6].copy_from_slice(&OPCODE.to_ne_bytes());
     request[6..8].copy_from_slice(&MSG_SIZE.to_ne_bytes());
 
-    *wl_current_id += 1;
-    request[8..12].copy_from_slice(&wl_current_id.to_ne_bytes());
+    wl_state.current_id += 1;
+    request[8..12].copy_from_slice(&wl_state.current_id.to_ne_bytes());
+    wl_state.registry_id = wl_state.current_id;
 
-    let written = wl_sock.write(&request)?;
+    let written = wl_state.socket.write(&request)?;
     assert!(written == MSG_SIZE.into());
 
     Ok(())
 }
 
+fn wl_registry_global(size: u16, wl_sock: &mut UnixStream) {
+    
+}
+
 fn main() ->Result<(), Box<dyn Error>> {
     
-    let mut wl_current_id: u32 = 0;
-
-    let mut wl_sock = match wl_connect() {
+    let wl_sock = match wl_connect() {
         Ok(res) => res,
         Err(err) => {
             eprintln!("wl_connect failed: {}", err);
@@ -44,7 +52,23 @@ fn main() ->Result<(), Box<dyn Error>> {
         }
     };
 
-    wl_display_get_registry(&mut wl_sock, &mut wl_current_id);
+    let mut wl_state = WlState {
+        socket: wl_sock,
+        current_id: 0, 
+        registry_id: 0,
+    };
+
+    wl_display_get_registry(&mut wl_state)?;
+
+    let mut header = [0u8; 8];
+    wl_state.socket.read_exact(&mut header)?;
+
+    println!(
+        "Object: {}\nOpcode: {}\nSize: {}",
+        u32::from_ne_bytes(header[0..4].try_into().unwrap()),
+        u16::from_ne_bytes(header[4..6].try_into().unwrap()),
+        u16::from_ne_bytes(header[6..8].try_into().unwrap())
+    );
 
     Ok(())
 }
