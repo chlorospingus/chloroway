@@ -23,7 +23,6 @@ fn wl_connect() -> Result<UnixStream, Box<dyn Error>> {
     Ok(sock)
 }
 
-
 fn wl_display_get_registry(wl_state: &mut WlState) -> Result<(), Box<dyn Error>> {
     const OBJECT: u32 = 1;
     const OPCODE: u16 = 1;
@@ -44,8 +43,29 @@ fn wl_display_get_registry(wl_state: &mut WlState) -> Result<(), Box<dyn Error>>
     Ok(())
 }
 
-fn wl_registry_global(header: &WlHeader, wl_sock: &mut UnixStream) {
-    
+fn wl_registry_global(header: &WlHeader, wl_state: &mut WlState) -> Result<(), Box<dyn Error>> {
+    let mut event = vec![0; (header.size - 8).into()];
+    wl_state.socket.read_exact(&mut event)?;
+    let mut offset = 0;
+
+    let name = u32::from_ne_bytes(event[offset..offset+4].try_into()?);
+    offset += 4;
+    let interface_len = u32::from_ne_bytes(event[offset..offset+4].try_into()?);
+    offset += 4;
+    let interface = String::from_utf8(event[offset..offset+(interface_len as usize)].into())?;
+    offset += (interface_len+3 & u32::MAX-3) as usize;
+    let version = u32::from_ne_bytes(event[offset..offset+4].try_into()?);
+
+    println!(
+        "Received global:\n\tName: {}\n\tInterface len: {}\n\tInterface: {}\n\tVersion: {}\n\tOffset: {}",
+        name,
+        interface_len,
+        interface,
+        version,
+        offset
+    );
+
+    Ok(())
 }
 
 fn main() ->Result<(), Box<dyn Error>> {
@@ -60,7 +80,7 @@ fn main() ->Result<(), Box<dyn Error>> {
 
     let mut wl_state = WlState {
         socket: wl_sock,
-        current_id: 0, 
+        current_id: 1, 
         registry_id: 0,
     };
 
@@ -69,17 +89,21 @@ fn main() ->Result<(), Box<dyn Error>> {
     let mut header = [0u8; 8];
     wl_state.socket.read_exact(&mut header)?;
     let header = WlHeader {
-        object: u32::from_ne_bytes(header[0..4].try_into().unwrap()),
-        opcode: u16::from_ne_bytes(header[4..6].try_into().unwrap()),
-        size: u16::from_ne_bytes(header[6..8].try_into().unwrap())
+        object: u32::from_ne_bytes(header[0..4].try_into()?),
+        opcode: u16::from_ne_bytes(header[4..6].try_into()?),
+        size: u16::from_ne_bytes(header[6..8].try_into()?)
     };
 
     println!(
-        "Object: {}\nOpcode: {}\nSize: {}",
+        "Received event:\n\tObject: {}\n\tOpcode: {}\n\tSize: {}",
         header.object,
         header.opcode,
         header.size
     );
+
+    if header.object == wl_state.registry_id && header.opcode == 0 {
+        wl_registry_global(&header, &mut wl_state)?;
+    }
 
     Ok(())
 }
