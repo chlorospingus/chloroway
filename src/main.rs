@@ -6,6 +6,12 @@ struct WlState {
     registry_id: u32,
 }
 
+struct WlHeader {
+    object: u32,
+    opcode: u16,
+    size: u16
+}
+
 fn wl_connect() -> Result<UnixStream, Box<dyn Error>> {
     let wl_sock_path: String = format!(
         "{}/{}",
@@ -38,7 +44,7 @@ fn wl_display_get_registry(wl_state: &mut WlState) -> Result<(), Box<dyn Error>>
     Ok(())
 }
 
-fn wl_registry_global(size: u16, wl_sock: &mut UnixStream) {
+fn wl_registry_global(header: &WlHeader, wl_sock: &mut UnixStream) {
     
 }
 
@@ -62,12 +68,17 @@ fn main() ->Result<(), Box<dyn Error>> {
 
     let mut header = [0u8; 8];
     wl_state.socket.read_exact(&mut header)?;
+    let header = WlHeader {
+        object: u32::from_ne_bytes(header[0..4].try_into().unwrap()),
+        opcode: u16::from_ne_bytes(header[4..6].try_into().unwrap()),
+        size: u16::from_ne_bytes(header[6..8].try_into().unwrap())
+    };
 
     println!(
         "Object: {}\nOpcode: {}\nSize: {}",
-        u32::from_ne_bytes(header[0..4].try_into().unwrap()),
-        u16::from_ne_bytes(header[4..6].try_into().unwrap()),
-        u16::from_ne_bytes(header[6..8].try_into().unwrap())
+        header.object,
+        header.opcode,
+        header.size
     );
 
     Ok(())
