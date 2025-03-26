@@ -1,23 +1,55 @@
 use std::{env, error::Error, io::{Read, Write}, os::unix::net::UnixStream, u32};
 
 struct WlState {
-    socket: UnixStream,
-    current_id: u32,
-    registry_id: u32,
+    socket:         UnixStream,
+    current_id:     u32,
+    registry_id:    Option<u32>,
+    shm_id:         Option<u32>
 }
 
 struct WlHeader {
-    object: u32,
+    object: u32,30334241
     opcode: u16,
     size: u16
 }
 
-trait WlEvent {
+trait WlMessage {
+    /// Write a u32 to self at offset and increment offset by four
+    fn write_u32(&mut self, value: &u32, offset: &mut usize);
+    /// Write a u16 to self at offset and increment offset by four
+    fn write_u16(&mut self, value: &u16, offset: &mut usize);
+    /// Write a string to self at offset
+    /// and increment offset by string length rounded up to four bytes
+    fn write_string(&mut self, str: &String, offset: &mut usize);
+    /// Read a u32 from self at offset and increment offset by four
     fn read_u32(&self, offset: &mut usize) -> u32;
+    /// Read a u16 from self at offset and increment offset by two
+    fn read_u16(&self, offset: &mut usize) -> u16;
+    /// Read a string from self at offset 
+    /// and increment offset by string length rounded up to four bytes
     fn read_string(&self, offset: &mut usize) -> String;
 }
 
-impl WlEvent for Vec<u8> {
+impl WlMessage for Vec<u8> {
+    fn write_u32(&mut self, value: &u32, offset: &mut usize) {
+        self[*offset..*offset+4].copy_from_slice(&value.to_ne_bytes());
+        *offset += 4;
+    }
+
+    fn write_u16(&mut self, value: &u16, offset: &mut usize) {
+        self[*offset..*offset+2].copy_from_slice(&value.to_ne_bytes());
+        *offset += 2;
+    }
+
+    fn write_string(&mut self, str: &String, offset: &mut usize) {
+        let mut str = str.clone();
+        str.push('\0');
+        let rounded_len: u32 = (str.len()+3) as u32 & (u32::MAX-3);
+        self.write_u32(&rounded_len, offset);
+        self[*offset..*offset+str.len()].copy_from_slice(str.as_bytes());
+        *offset += rounded_len as usize;
+    }
+
     fn read_u32(&self, offset: &mut usize) -> u32 {
         let res = u32::from_ne_bytes(
             self[*offset..*offset+4]
@@ -25,6 +57,16 @@ impl WlEvent for Vec<u8> {
             .expect("u32::from_ne_bytes failed in WlEvent::read_u32")
         );
         *offset += 4;
+        res
+    }
+
+    fn read_u16(&self, offset: &mut usize) -> u16 {
+        let res = u16::from_ne_bytes(
+            self[*offset..*offset+2]
+            .try_into()
+            .expect("u32::from_ne_bytes failed in WlEvent::read_u32")
+        );
+        *offset += 2;
         res
     }
 
@@ -36,9 +78,9 @@ impl WlEvent for Vec<u8> {
         );
         *offset += 4;
         let str = String::from_utf8(
-            self[*offset..*offset+(str_len as usize)]
+            self[*offset..*offset+((str_len-1) as usize)]
             .to_vec())
-            .expect("String::from_utf8 failed in read_string()"
+            .expect("String::from_utf8 failed in WlEvent::read_string()"
         );
         *offset += (str_len+3 & u32::MAX-3) as usize;
         str
@@ -56,6 +98,16 @@ fn wl_connect() -> Result<UnixStream, Box<dyn Error>> {
     Ok(sock)
 }
 
+fn wl_display_error(event: &Vec<u8>) {
+    let mut offset: usize = 0;
+    eprintln!(
+        "Received error:\n\tObject: {}\n\tCode: {}\n\tMessage: {}",
+        event.read_u32(&mut offset),
+        event.read_u32(&mut offset),
+        event.read_string(&mut offset)
+    );
+}
+
 fn wl_display_get_registry(wl_state: &mut WlState) -> Result<(), Box<dyn Error>> {
     const OBJECT: u32 = 1;
     const OPCODE: u16 = 1;
@@ -68,12 +120,55 @@ fn wl_display_get_registry(wl_state: &mut WlState) -> Result<(), Box<dyn Error>>
 
     wl_state.current_id += 1;
     request[8..12].copy_from_slice(&wl_state.current_id.to_ne_bytes());
-    wl_state.registry_id = wl_state.current_id;
+    wl_state.registry_id = Some(wl_state.current_id);
 
     let written = wl_state.socket.write(&request)?;
     assert!(written == MSG_SIZE.into());
 
     Ok(())
+}
+
+fn wl_registry_bind(
+    wl_state: &mut WlState,
+    name: &u32,
+    interface: &String,
+    version: &u32,
+    id: &u32
+) -> Result<(), String> {
+    let object: u32 = match wl_state.registry_id {
+        Some(id) => id,
+        None => return Err(String::from("wl_registry_bind failed: wl_state.registry_id not set!"))
+    };
+    const OPCODE: u16 = 0;
+
+    let req_size: u16 = 24 + ((interface.len() as u16+3) & (u16::MAX-3));
+    let mut request = vec![0u8; req_size as usize];
+    let mut offset: usize = 0;
+
+    request.write_u32    (&object,    &mut offset);
+    request.write_u16    (&OPCODE,    &mut offset);
+    request.write_u16    (&req_size,  &mut offset);
+
+    request.write_u32    (&name,      &mut offset);
+    request.write_string (&interface, &mut offset);
+    request.write_u32    (&version,   &mut offset);
+    request.write_u32    (&id,        &mut offset);
+
+    match wl_state.socket.write(&request) {
+        Ok(bytes) => {
+            assert!(bytes == req_size as usize)
+        }
+        Err(err) => {
+            return Err(err.to_string());
+        }
+    };
+
+    Ok(())
+}
+
+fn wl_shm_format(event: &Vec<u8>) {
+    let mut offset = 0;
+    println!("Received pixel format: {:x}", event.read_u32(&mut offset));
 }
 
 fn wl_registry_global(event: &Vec<u8>, wl_state: &mut WlState) -> Result<(), Box<dyn Error>> {
@@ -90,6 +185,18 @@ fn wl_registry_global(event: &Vec<u8>, wl_state: &mut WlState) -> Result<(), Box
         version,
     );
 
+    if interface == "wl_shm" {
+        wl_state.current_id += 1;
+        wl_registry_bind(
+            wl_state,
+            &name,
+            &interface,
+            &version,
+            &wl_state.current_id.clone()
+        )?;
+        wl_state.shm_id = Some(wl_state.current_id);
+    }
+
     Ok(())
 }
 
@@ -104,35 +211,49 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     let mut wl_state = WlState {
-        socket: wl_sock,
-        current_id: 1, 
-        registry_id: 0,
+        socket:      wl_sock,
+        current_id:  1, 
+        registry_id: None,
+        shm_id:      None,
     };
 
     wl_display_get_registry(&mut wl_state)?;
 
+    let mut event: Vec<u8> = Vec::new();
     let mut header = [0u8; 8];
 
-    wl_state.socket.read_exact(&mut header)?;
-    let header = WlHeader {
-        object: u32::from_ne_bytes(header[0..4].try_into()?),
-        opcode: u16::from_ne_bytes(header[4..6].try_into()?),
-        size: u16::from_ne_bytes(header[6..8].try_into()?)
-    };
+    loop {
+        wl_state.socket.read_exact(&mut header)?;
 
-    let mut event: Vec<u8> = vec![0; header.size as usize];
-    wl_state.socket.read_exact(&mut event)?;
+        let header = WlHeader {
+            object: u32::from_ne_bytes(header[0..4].try_into()?),
+            opcode: u16::from_ne_bytes(header[4..6].try_into()?),
+            size:   u16::from_ne_bytes(header[6..8].try_into()?)
+        };
 
-    if header.object == wl_state.registry_id && header.opcode == 0 {
-        wl_registry_global(&event, &mut wl_state)?;
-    }
-    else {
-        println!(
-            "Received event:\n\tObject: {}\n\tOpcode: {}\n\tSize: {}",
-            header.object,
-            header.opcode,
-            header.size
-        );
+        event.resize((header.size-8) as usize, 0);
+        wl_state.socket.read_exact(&mut event)?;
+
+        if header.object == wl_state.registry_id.unwrap() && header.opcode == 0 {
+            wl_registry_global(&event, &mut wl_state)?;
+        }
+        else if header.object == 1 && header.opcode == 0 { // wl_display::error
+            wl_display_error(&event);
+        }
+        else if wl_state.shm_id.is_some() && header.object == wl_state.shm_id.unwrap() && header.opcode == 0 { // wl_shm::format
+            wl_shm_format(&event);
+        }
+        else {
+            println!(
+                "Received event:\n\tObject: {}\n\tOpcode: {}\n\tSize: {}",
+                header.object,
+                header.opcode,
+                header.size
+            );
+        }
+        if false {
+            break
+        }
     }
 
     Ok(())
