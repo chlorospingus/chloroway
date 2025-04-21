@@ -209,11 +209,11 @@ fn wl_shm_create_pool(wl_state: &mut WlState) -> Result<(), String> {
     request.write_u32(&id,                  &mut offset);
     request.write_u32(&(shm_size as u32),   &mut offset);
     
-    println!("{:?}", request);
-
     let mut ancillary_buf = [0u8; 32];
     let mut ancillary = SocketAncillary::new(&mut ancillary_buf[..]);
-    assert!(ancillary.add_fds(&fds[..]));
+    if !ancillary.add_fds(&fds[..]) {
+        return Err("Error in wl_shm_create_pool: ancillary.add_fds failed".to_string());
+    }
 
     match wl_state.socket.send_vectored_with_ancillary(&[std::io::IoSlice::new(&request)], &mut ancillary) {
         Ok(bytes) => {
@@ -227,10 +227,39 @@ fn wl_shm_create_pool(wl_state: &mut WlState) -> Result<(), String> {
     Ok(())
 }
 
-fn wl_shm_pool_resize(event: &Vec<u8>, wl_state: &mut WlState) -> std::io::Result<()> {
+fn wl_shm_pool_create_buffer(
+    wl_state:   &mut WlState,
+    shm_offset: u32,
+    width:      u32,
+    height:     u32
+) -> Result<(), Box<dyn Error>> {
+    let object: u32 = wl_state.shm_pool.as_ref().unwrap().id;
+    const REQ_SIZE: u16 = 32;
+    const OPCODE: u16 = 0;
+
+    let stride: u32 = width * 4;
+    wl_state.current_id += 1;
+    let id = wl_state.current_id;
+    let format = 0;
+
     let mut offset: usize = 0;
-    let size = event.read_u32(&mut offset);
-    wl_state.shm_pool.as_mut().unwrap().resize(size as usize)
+    let mut request = vec![0u8; REQ_SIZE as usize];
+    request.write_u32(&object, &mut offset);
+    request.write_u16(&OPCODE, &mut offset);
+    request.write_u16(&REQ_SIZE, &mut offset);
+
+    request.write_u32(&id,          &mut offset);
+    request.write_u32(&shm_offset,  &mut offset);
+    request.write_u32(&width,       &mut offset);
+    request.write_u32(&height,      &mut offset);
+    request.write_u32(&stride,      &mut offset);
+    request.write_u32(&format,      &mut offset);
+
+    println!("Creating wl_buffer: {:?}", request);
+
+    wl_state.socket.write(&request)?;
+
+    Ok(())
 }
 
 fn wl_registry_global(event: &Vec<u8>, wl_state: &mut WlState) -> Result<(), Box<dyn Error>> {
@@ -257,14 +286,15 @@ fn wl_registry_global(event: &Vec<u8>, wl_state: &mut WlState) -> Result<(), Box
             &wl_state.current_id.clone()
         )?;
         wl_state.shm_id = Some(wl_state.current_id);
+
         wl_shm_create_pool(wl_state)?;
+        wl_shm_pool_create_buffer(wl_state, 0, 200, 200)?;
     }
 
     Ok(())
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    
     let wl_sock = match wl_connect() {
         Ok(res) => res,
         Err(err) => {
@@ -306,9 +336,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         else if wl_state.shm_id.is_some() && header.object == wl_state.shm_id.unwrap() && header.opcode == 0 { // wl_shm::format
             wl_shm_format(&event);
-        }
-        else if wl_state.shm_pool.is_some() && header.object == wl_state.shm_pool.as_ref().unwrap().id && header.opcode == 2 {
-            wl_shm_pool_resize(&event, &mut wl_state)?;
         }
         else {
             println!(
