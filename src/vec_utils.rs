@@ -65,9 +65,8 @@ impl WlMessage for Vec<u8> {
         *offset += 4;
         let str = String::from_utf8(
             self[*offset..*offset+((str_len-1) as usize)]
-            .to_vec())
-            .expect("String::from_utf8 failed in WlEvent::read_string()"
-        );
+            .to_vec()
+        ).expect("String::from_utf8 failed in WlEvent::read_string()");
         *offset += (str_len+3 & u32::MAX-3) as usize;
         str
     }
