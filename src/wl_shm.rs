@@ -75,6 +75,7 @@ impl WlClient {
 
         let mut offset: usize = 0;
         let mut request = vec![0u8; REQ_SIZE as usize];
+
         request.write_u32(&object, &mut offset);
         request.write_u16(&OPCODE, &mut offset);
         request.write_u16(&REQ_SIZE, &mut offset);
