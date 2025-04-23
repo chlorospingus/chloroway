@@ -1,15 +1,22 @@
 #![feature(unix_socket_ancillary_data)]
 use std::{env, error::Error, io::{Read, Write}, os::unix::net::{UnixStream, SocketAncillary}, u32};
 
-use shm::shm::ShmPool;
 mod shm;
+mod vec_utils;
+pub use vec_utils::WlMessage;
+
+struct WlHeader {
+    object: u32,
+    opcode: u16,
+    size: u16
+}
 
 struct WlClient {
     socket:         UnixStream,
     current_id:     u32,
     registry_id:    Option<u32>,
     shm_id:         Option<u32>,
-    shm_pool:       Option<ShmPool>
+    shm_pool:       Option<shm::ShmPool>
 }
 
 impl WlClient {
@@ -149,7 +156,7 @@ impl WlClient {
 
     fn wl_shm_create_pool(&mut self) -> Result<(), String> {
         self.current_id += 1;
-        self.shm_pool = Some(match ShmPool::new(4096, self.current_id) {
+        self.shm_pool = Some(match shm::ShmPool::new(4096, self.current_id) {
             Ok(val) => val,
             Err(err) => {
                 return Err(err.to_string());
@@ -226,8 +233,6 @@ impl WlClient {
         request.write_u32(&stride,      &mut offset);
         request.write_u32(&format,      &mut offset);
 
-        println!("Creating wl_buffer: {:?}", request);
-
         self.socket.write(&request)?;
 
         Ok(())
@@ -264,88 +269,6 @@ impl WlClient {
         Ok(())
     }
 }
-
-struct WlHeader {
-    object: u32,
-    opcode: u16,
-    size: u16
-}
-
-trait WlMessage {
-    /// Write a u32 to self at offset and increment offset by four
-    fn write_u32(&mut self, value: &u32, offset: &mut usize);
-    /// Write a u16 to self at offset and increment offset by four
-    fn write_u16(&mut self, value: &u16, offset: &mut usize);
-    /// Write a string to self at offset
-    /// and increment offset by string length rounded up to four bytes
-    fn write_string(&mut self, str: &String, offset: &mut usize);
-    /// Read a u32 from self at offset and increment offset by four
-    fn read_u32(&self, offset: &mut usize) -> u32;
-    /// Read a u16 from self at offset and increment offset by two
-    fn read_u16(&self, offset: &mut usize) -> u16;
-    /// Read a string from self at offset 
-    /// and increment offset by string length rounded up to four bytes
-    fn read_string(&self, offset: &mut usize) -> String;
-}
-
-impl WlMessage for Vec<u8> {
-    fn write_u32(&mut self, value: &u32, offset: &mut usize) {
-        self[*offset..*offset+4].copy_from_slice(&value.to_ne_bytes());
-        *offset += 4;
-    }
-
-    fn write_u16(&mut self, value: &u16, offset: &mut usize) {
-        self[*offset..*offset+2].copy_from_slice(&value.to_ne_bytes());
-        *offset += 2;
-    }
-
-    fn write_string(&mut self, str: &String, offset: &mut usize) {
-        let mut str = str.clone();
-        str.push('\0');
-        let rounded_len: u32 = (str.len()+3) as u32 & (u32::MAX-3);
-        self.write_u32(&rounded_len, offset);
-        self[*offset..*offset+str.len()].copy_from_slice(str.as_bytes());
-        *offset += rounded_len as usize;
-    }
-
-    fn read_u32(&self, offset: &mut usize) -> u32 {
-        let res = u32::from_ne_bytes(
-            self[*offset..*offset+4]
-            .try_into()
-            .expect("u32::from_ne_bytes failed in WlEvent::read_u32")
-        );
-        *offset += 4;
-        res
-    }
-
-    fn read_u16(&self, offset: &mut usize) -> u16 {
-        let res = u16::from_ne_bytes(
-            self[*offset..*offset+2]
-            .try_into()
-            .expect("u32::from_ne_bytes failed in WlEvent::read_u32")
-        );
-        *offset += 2;
-        res
-    }
-
-    fn read_string(&self, offset: &mut usize) -> String {
-        let str_len = u32::from_ne_bytes(
-            self[*offset..*offset+4]
-            .try_into()
-            .expect("u32::from_ne_bytes failed in WlEvent::read_string")
-        );
-        *offset += 4;
-        let str = String::from_utf8(
-            self[*offset..*offset+((str_len-1) as usize)]
-            .to_vec())
-            .expect("String::from_utf8 failed in WlEvent::read_string()"
-        );
-        *offset += (str_len+3 & u32::MAX-3) as usize;
-        str
-    }
-}
-
-
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut wl_client = WlClient::new()?;
