@@ -67,6 +67,9 @@ impl WlClient {
         else if self.shm_id.is_some() && header.object == self.shm_id.unwrap() && header.opcode == 0 { // wl_shm::format
             WlClient::wl_shm_format(&event);
         }
+        else if self.xdg_wm_base_id.is_some() && header.object == self.xdg_wm_base_id.unwrap() && header.opcode == 0 { // xdg_wm_base::ping
+            self.xdg_wm_base_pong(&event)?;
+        }
         else {
             println!(
                 "Received event:\n\tObject: {}\n\tOpcode: {}\n\tSize: {}",

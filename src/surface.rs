@@ -52,11 +52,33 @@ impl WlClient {
         let mut request = vec![0u8; MSG_SIZE as usize];
         let mut offset: usize = 0;
 
-        request.write_u32(&object, &mut offset);
-        request.write_u16(&OPCODE, &mut offset);
+        request.write_u32(&object,   &mut offset);
+        request.write_u16(&OPCODE,   &mut offset);
         request.write_u16(&MSG_SIZE, &mut offset);
-        request.write_u32(&X, &mut offset);
-        request.write_u32(&Y, &mut offset);
+        request.write_u32(&X,	     &mut offset);
+        request.write_u32(&Y,	     &mut offset);
+
+        self.socket.write(&request)?;
+
+        Ok(())
+    }
+
+    pub fn xdg_wm_base_pong(&mut self, event: &Vec<u8>) -> Result<(), Box<dyn Error>> {
+        if self.xdg_wm_base_id.is_none() {
+            return Err(Box::new(UnsetErr("xdg_wm_base_id".to_string())));
+        }
+        let object = self.xdg_wm_base_id.unwrap();
+        const OPCODE: u16 = 3;
+        const MSG_SIZE: u16 = 12;
+        let serial = u32::from_ne_bytes(event[0..4].try_into().unwrap());
+
+        let mut request = vec![0u8; MSG_SIZE as usize];
+        let mut offset: usize = 0;
+
+        request.write_u32(&object,	 &mut offset);
+        request.write_u16(&OPCODE,	 &mut offset);
+        request.write_u16(&MSG_SIZE, &mut offset);
+        request.write_u32(&serial,   &mut offset);
 
         self.socket.write(&request)?;
 
