@@ -2,6 +2,17 @@ use crate::{WlClient, vec_utils::WlMessage};
 use std::{io::Write, error::Error};
 
 impl WlClient {
+    fn init_toplevel(&mut self) -> Result<(), Box<dyn Error>> {
+        println!("----> shm and compositor found!");
+        self.wl_shm_create_pool()?;
+        self.wl_shm_pool_create_buffer(0, 200, 200)?;
+        self.wl_compositor_create_surface()?;
+        self.wl_surface_attach()?;
+
+
+        Ok(())
+    }
+
     pub fn wl_display_get_registry(&mut self) -> Result<(), Box<dyn Error>> {
         const OBJECT: u32 = 1;
         const OPCODE: u16 = 1;
@@ -47,9 +58,39 @@ impl WlClient {
                 &self.current_id.clone()
             )?;
             self.shm_id = Some(self.current_id);
+            if self.compositor_id.is_some() && self.xdg_wm_base_id.is_some() {
+                self.init_toplevel()?;
+            }
+        }
 
-            self.wl_shm_create_pool()?;
-            self.wl_shm_pool_create_buffer(0, 200, 200)?;
+        if interface == "wl_compositor" {
+            self.current_id += 1;
+            self.wl_registry_bind(
+                &name,
+                &interface,
+                &version,
+                &self.current_id.clone()
+            )?;
+            self.compositor_id = Some(self.current_id);
+
+            if self.shm_id.is_some() && self.xdg_wm_base_id.is_some() {
+                self.init_toplevel()?;
+            }
+        }
+
+        if interface == "xdg_wm_base" {
+            self.current_id += 1;
+            self.wl_registry_bind(
+                &name,
+                &interface,
+                &version,
+                &self.current_id.clone()
+            )?;
+            self.xdg_wm_base_id = Some(self.current_id);
+
+            if self.shm_id.is_some() && self.compositor_id.is_some() {
+                self.init_toplevel()?;
+            }
         }
 
         Ok(())

@@ -89,6 +89,8 @@ impl WlClient {
 
         self.socket.write(&request)?;
 
+        self.buffer_id = Some(self.current_id);
+
         Ok(())
     }
 

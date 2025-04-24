@@ -6,6 +6,7 @@ mod wl_registry;
 mod wl_shm;
 mod vec_utils;
 mod shm;
+mod surface;
 use wl_client::WlClient;
 
 fn main() -> Result<(), Box<dyn Error>> {

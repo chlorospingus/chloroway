@@ -13,7 +13,11 @@ pub struct WlClient {
     pub current_id:     u32,
     pub registry_id:    Option<u32>,
     pub shm_id:         Option<u32>,
-    pub shm_pool:       Option<shm::ShmPool>
+    pub shm_pool:       Option<shm::ShmPool>,
+    pub buffer_id:      Option<u32>,
+    pub compositor_id:  Option<u32>,
+    pub surface_id:     Option<u32>,
+    pub xdg_wm_base_id: Option<u32>,
 }
 
 impl WlClient {
@@ -25,11 +29,15 @@ impl WlClient {
         ))?;
 
         let res = WlClient {
-            socket:      sock,
-            current_id:  1, 
-            registry_id: None,
-            shm_id:      None,
-            shm_pool:    None,
+            socket:         sock,
+            current_id:     1, 
+            registry_id:    None,
+            shm_id:         None,
+            shm_pool:       None,
+            buffer_id:      None,
+            compositor_id:  None,
+            surface_id:     None,
+            xdg_wm_base_id: None,
         };
 
         Ok(res)
