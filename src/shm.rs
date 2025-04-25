@@ -1,4 +1,4 @@
-use libc::{c_void, ftruncate, mmap, munmap, shm_open, shm_unlink, MAP_FAILED, MAP_SHARED, O_CREAT, O_EXCL, O_RDWR, PROT_READ};
+use libc::{c_void, ftruncate, mmap, munmap, shm_open, shm_unlink, MAP_FAILED, MAP_SHARED, O_CREAT, O_EXCL, O_RDWR, PROT_READ, PROT_WRITE};
 
 #[derive(Clone)]
 pub struct ShmPool {
@@ -25,13 +25,15 @@ impl ShmPool {
             return Err(std::io::Error::last_os_error())
         }
         let addr = unsafe {
-            mmap(std::ptr::null_mut(), size, PROT_READ | PROT_READ, MAP_SHARED, fd, 0)
+            mmap(std::ptr::null_mut(), size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0)
         };
 
         if addr == MAP_FAILED {
             eprint!("mmap in ShmPool::new() failed: ");
             return Err(std::io::Error::last_os_error())
         }
+
+        unsafe { std::ptr::copy_nonoverlapping(vec![u8::MAX; size].as_ptr(), addr as *mut u8, size); }
 
         Ok(ShmPool {
             fd,
@@ -46,6 +48,19 @@ impl ShmPool {
             return Err(std::io::Error::last_os_error())
         };
         self.size = size;
+
+        Ok(())
+    }
+
+    pub fn write(&mut self, data: &Vec<u8>, offset: usize) -> std::io::Result<()> {
+        // TODO: Bounds check
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                data.as_ptr(), // src: data as *const u8
+                self.addr as *mut u8, // dst: ShmPool address as *mut u8
+                data.len()
+            );
+        }
 
         Ok(())
     }
