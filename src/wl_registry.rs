@@ -1,14 +1,26 @@
-use crate::{WlClient, vec_utils::WlMessage};
+use crate::{surface::UnsetErr, vec_utils::WlMessage, WlClient};
 use std::{io::Write, error::Error};
 
 impl WlClient {
     fn init_toplevel(&mut self) -> Result<(), Box<dyn Error>> {
-        println!("----> shm and compositor found!");
+        if self.shm_id.is_none() {
+            return Err(Box::new(UnsetErr("shm_id".to_string())));
+        }
+        if self.compositor_id.is_none() {
+            return Err(Box::new(UnsetErr("compositor_id".to_string())));
+        }
+        if self.xdg_wm_base_id.is_none() {
+            return Err(Box::new(UnsetErr("xdg_wm_base_id".to_string())));
+        }
+        if self.layer_shell_id.is_none() {
+            return Err(UnsetErr("layer_shell_id".to_string()).into());
+        }
+        println!("Initializing toplevel!");
+        self.wl_compositor_create_surface()?;
+        self.layer_shell_get_layer_surface()?;
         self.wl_shm_create_pool()?;
         self.wl_shm_pool_create_buffer(0, 200, 200)?;
-        self.wl_compositor_create_surface()?;
         self.wl_surface_attach()?;
-
 
         Ok(())
     }
@@ -49,6 +61,8 @@ impl WlClient {
             version,
         );
 
+        // TODO: Collapse these into one line (probably using a macro)
+
         if interface == "wl_shm" {
             self.current_id += 1;
             self.wl_registry_bind(
@@ -58,9 +72,7 @@ impl WlClient {
                 &self.current_id.clone()
             )?;
             self.shm_id = Some(self.current_id);
-            if self.compositor_id.is_some() && self.xdg_wm_base_id.is_some() {
-                self.init_toplevel()?;
-            }
+            self.init_toplevel().unwrap_or_else(|err| {eprintln!("{}", err)});
         }
 
         if interface == "wl_compositor" {
@@ -72,10 +84,7 @@ impl WlClient {
                 &self.current_id.clone()
             )?;
             self.compositor_id = Some(self.current_id);
-
-            if self.shm_id.is_some() && self.xdg_wm_base_id.is_some() {
-                self.init_toplevel()?;
-            }
+            self.init_toplevel().unwrap_or_else(|err| {eprintln!("{}", err)});
         }
 
         if interface == "xdg_wm_base" {
@@ -87,10 +96,19 @@ impl WlClient {
                 &self.current_id.clone()
             )?;
             self.xdg_wm_base_id = Some(self.current_id);
+            self.init_toplevel().unwrap_or_else(|err| {eprintln!("{}", err)});
+        }
 
-            if self.shm_id.is_some() && self.compositor_id.is_some() {
-                self.init_toplevel()?;
-            }
+        if interface == "zwlr_layer_shell_v1" {
+            self.current_id += 1;
+            self.wl_registry_bind(
+                &name,
+                &interface,
+                &version,
+                &self.current_id.clone()
+            )?;
+            self.layer_shell_id = Some(self.current_id);
+            self.init_toplevel().unwrap_or_else(|err| {eprintln!("{}", err)});
         }
 
         Ok(())

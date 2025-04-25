@@ -28,6 +28,7 @@ impl WlMessage for Vec<u8> {
     }
 
     fn write_string(&mut self, str: &String, offset: &mut usize) {
+        // TODO: Don't clone str, use &str instead of &String
         let mut str = str.clone();
         str.push('\0');
         let rounded_len: u32 = (str.len()+3) as u32 & (u32::MAX-3);

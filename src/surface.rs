@@ -2,20 +2,22 @@ use std::{error::Error, io::Write};
 
 use crate::{vec_utils::WlMessage, WlClient};
 
+use std::fmt;
+
 #[derive(Debug)]
-pub struct UnsetErr (String);
+pub struct UnsetErr (pub String);
 
 impl Error for UnsetErr {}
-impl std::fmt::Display for UnsetErr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} not set!", self.0)
+impl fmt::Display for UnsetErr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} is not set!", self.0)
     }
 }
 
 impl WlClient {
     pub fn wl_compositor_create_surface(&mut self) -> Result<(), Box<dyn Error>> {
         if self.compositor_id.is_none() {
-            return Err(Box::new(UnsetErr("compositor_id".to_string())));
+            return Err(UnsetErr("compositor_id".to_string()).into());
         }
 
         let object = self.compositor_id.unwrap();

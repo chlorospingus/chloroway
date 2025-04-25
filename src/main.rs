@@ -7,6 +7,7 @@ mod wl_shm;
 mod vec_utils;
 mod shm;
 mod surface;
+mod layer_shell;
 use wl_client::WlClient;
 
 fn main() -> Result<(), Box<dyn Error>> {
