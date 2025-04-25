@@ -3,6 +3,8 @@ use crate::{surface::UnsetErr, vec_utils::WlMessage, WlClient};
 
 const NAMESPACE: &str = "chlorostart";
 const OVERLAY: u32 = 3;
+const STRIDE: usize = 4;
+const EXCLUSIVE: u32 = 1; // exclusize keyboard focus
 
 impl WlClient {
     pub fn layer_shell_get_layer_surface(&mut self) -> Result<(), Box<dyn Error>> {
@@ -85,7 +87,6 @@ impl WlClient {
         let object: u32 = self.layer_surface_id.unwrap();
         const OPCODE: u16 = 4;
         const MSG_SIZE: u16 = 12;
-        const EXCLUSIVE: u32 = 1; // exclusize keyboard focus
 
         let mut request = vec![0u8; MSG_SIZE as usize];
         let mut offset: usize = 0;

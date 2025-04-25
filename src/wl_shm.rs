@@ -1,15 +1,17 @@
 use std::{io::Write, error::Error, os::unix::net::SocketAncillary};
 use crate::{WlClient, vec_utils::WlMessage, shm};
 
+const STRIDE: usize = 4;
+
 impl WlClient {
     pub fn wl_shm_format(event: &Vec<u8>) {
         let mut offset = 0;
         println!("Received pixel format: {:x}", event.read_u32(&mut offset));
     }
 
-    pub fn wl_shm_create_pool(&mut self) -> Result<(), String> {
+    pub fn wl_shm_create_pool(&mut self, width: usize, height: usize) -> Result<(), String> {
         self.current_id += 1;
-        self.shm_pool = Some(match shm::ShmPool::new(4096, self.current_id) {
+        self.shm_pool = Some(match shm::ShmPool::new(width * height * STRIDE, self.current_id) {
             Ok(val) => val,
             Err(err) => {
                 return Err(err.to_string());
