@@ -18,9 +18,11 @@ impl WlClient {
         println!("Initializing toplevel!");
         self.wl_compositor_create_surface()?;
         self.layer_shell_get_layer_surface()?;
+        self.layer_surface_set_size(200, 200)?;
         self.wl_shm_create_pool()?;
         self.wl_shm_pool_create_buffer(0, 200, 200)?;
         self.wl_surface_attach()?;
+        self.layer_surface_set_keyboard_interactivity()?;
 
         Ok(())
     }

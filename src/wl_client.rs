@@ -19,6 +19,7 @@ pub struct WlClient {
     pub surface_id:         Option<u32>,
     pub xdg_wm_base_id:     Option<u32>,
     pub layer_shell_id:     Option<u32>,
+    pub layer_surface_id:   Option<u32>,
 }
 
 impl WlClient {
@@ -40,6 +41,7 @@ impl WlClient {
             surface_id:         None,
             xdg_wm_base_id:     None,
             layer_shell_id:     None,
+            layer_surface_id:   None,
         };
 
         Ok(res)
