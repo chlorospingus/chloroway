@@ -25,7 +25,7 @@ impl WlClient {
 
         self.wl_shm_create_pool()?;
         self.wl_shm_pool_create_buffer(0, 200, 200)?;
-        self.wl_surface_attach()?;
+        // self.wl_surface_attach()?;
         // self.wl_surface_commit()?;
 
         Ok(())

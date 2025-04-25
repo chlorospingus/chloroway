@@ -55,6 +55,9 @@ impl WlClient {
 
         self.socket.write(&request)?;
 
+        self.wl_surface_attach()?;
+        self.wl_surface_commit()?;
+
         Ok(())
     }
 
