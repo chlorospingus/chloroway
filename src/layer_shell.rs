@@ -31,10 +31,37 @@ impl WlClient {
         Ok(())
     }
 
+    pub fn layer_surface_configure(&mut self, event: &Vec<u8>) -> Result<(), Box<dyn Error>> {
+        let mut offset: usize = 0;
+        let serial = event.read_u32(&mut offset);
+        let width  = event.read_u32(&mut offset);
+        let height = event.read_u32(&mut offset);
+
+        // TODO: Resize based on configure
+
+        // Ack configure
+        let object = self.layer_surface_id.unwrap();
+        const OPCODE: u16 = 6;
+        const MSG_SIZE: u16 = 12;
+
+        let mut request = vec![0u8; MSG_SIZE as usize];
+        offset = 0;
+
+        request.write_u32(&object,   &mut offset);
+        request.write_u16(&OPCODE,   &mut offset);
+        request.write_u16(&MSG_SIZE, &mut offset);
+
+        request.write_u32(&serial, &mut offset);
+
+        self.socket.write(&request)?;
+
+        Ok(())
+    }
+
     pub fn layer_surface_set_size(&mut self, width: u32, height: u32) -> Result<(), Box<dyn Error>> {
         let object: u32 = self.layer_surface_id.unwrap();
         const OPCODE: u16 = 0;
-        const MSG_SIZE: u16 = 16;
+        const MSG_SIZE: u16 = 20;
 
         let mut request = vec![0u8; MSG_SIZE as usize];
         let mut offset: usize = 0;
@@ -43,8 +70,8 @@ impl WlClient {
         request.write_u16(&OPCODE,   &mut offset);
         request.write_u16(&MSG_SIZE, &mut offset);
 
-        request.write_u32(&width, &mut offset);
-        request.write_u32(&height, &mut offset);
+        request.write_u32(&width,    &mut offset);
+        request.write_u32(&height,   &mut offset);
 
         self.socket.write(&request)?;
 

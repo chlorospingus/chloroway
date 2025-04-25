@@ -48,6 +48,7 @@ impl WlClient {
         let object = self.surface_id.unwrap();
         const OPCODE: u16 = 1;
         const MSG_SIZE: u16 = 20;
+        let buffer = self.buffer_id.unwrap();
         const X: u32 = 0;
         const Y: u32 = 0;
 
@@ -57,8 +58,26 @@ impl WlClient {
         request.write_u32(&object,   &mut offset);
         request.write_u16(&OPCODE,   &mut offset);
         request.write_u16(&MSG_SIZE, &mut offset);
+        request.write_u32(&buffer,   &mut offset);
         request.write_u32(&X,	     &mut offset);
         request.write_u32(&Y,	     &mut offset);
+
+        self.socket.write(&request)?;
+
+        Ok(())
+    }
+
+    pub fn wl_surface_commit(&mut self) -> Result<(), Box<dyn Error>> {
+        let object = self.surface_id.unwrap();
+        const OPCODE: u16 = 6;
+        const MSG_SIZE: u16 = 8;
+
+        let mut request = vec![0u8; MSG_SIZE as usize];
+        let mut offset: usize = 0;
+
+        request.write_u32(&object,   &mut offset);
+        request.write_u16(&OPCODE,   &mut offset);
+        request.write_u16(&MSG_SIZE, &mut offset);
 
         self.socket.write(&request)?;
 
