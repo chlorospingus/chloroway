@@ -1,20 +1,11 @@
 use std::{env::var, error::Error, fmt::Debug, io::Read, os::unix::net::UnixStream, u32};
 
-use crate::{shm, vec_utils::WlMessage};
+use crate::wayland::shm;
 
 struct WlHeader {
     object: u32,
     opcode: u16,
     size:   u16,
-}
-
-pub mod color {
-    pub const WHITE:    u32 = 0xffffffff;
-    pub const BLACK:    u32 = 0xff000000;
-    pub const RED:      u32 = 0xffff0000;
-    pub const GREEN:    u32 = 0xff00ff00;
-    pub const BLUE:     u32 = 0xff0000ff;
-    pub const SAPPHIRE: u32 = 0xff74c7ec;
 }
 
 pub struct WlClient {

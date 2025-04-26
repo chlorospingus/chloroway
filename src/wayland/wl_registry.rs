@@ -1,4 +1,4 @@
-use crate::{surface::UnsetErr, vec_utils::WlMessage, WlClient};
+use crate::wayland::{surface::UnsetErr, vec_utils::WlMessage, wl_client::WlClient};
 use std::{io::Write, error::Error};
 
 impl WlClient {

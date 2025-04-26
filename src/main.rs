@@ -1,14 +1,8 @@
 #![feature(unix_socket_ancillary_data)]
 use std::error::Error;
 
-mod wl_client;
-mod wl_registry;
-mod wl_shm;
-mod vec_utils;
-mod shm;
-mod surface;
-mod layer_shell;
-use wl_client::WlClient;
+mod wayland;
+use wayland::wl_client::WlClient;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut wl_client = WlClient::new()?;

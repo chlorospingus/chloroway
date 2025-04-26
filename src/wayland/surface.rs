@@ -1,6 +1,6 @@
 use std::{error::Error, io::Write};
 
-use crate::{vec_utils::WlMessage, WlClient};
+use crate::wayland::{vec_utils::WlMessage, wl_client::WlClient};
 
 use std::fmt;
 

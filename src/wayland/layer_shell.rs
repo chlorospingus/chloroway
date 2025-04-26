@@ -1,9 +1,8 @@
 use std::{error::Error, io::Write};
-use crate::{surface::UnsetErr, vec_utils::WlMessage, WlClient};
+use crate::wayland::{vec_utils::WlMessage, wl_client::WlClient};
 
 const NAMESPACE: &str = "chlorostart";
 const OVERLAY: u32 = 3;
-const STRIDE: usize = 4;
 const EXCLUSIVE: u32 = 0; // exclusize keyboard focus
 
 impl WlClient {
