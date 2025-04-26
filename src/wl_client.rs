@@ -1,11 +1,35 @@
-use std::{env::var, error::Error, io::Read, os::unix::net::UnixStream, u32};
+use std::{env::var, error::Error, fmt::Debug, io::Read, os::unix::net::UnixStream, u32};
 
-use crate::shm;
+use crate::{shm, vec_utils::WlMessage};
 
 struct WlHeader {
     object: u32,
     opcode: u16,
-    size: u16
+    size:   u16,
+}
+
+#[derive(Clone)]
+pub struct Color {
+    pub alpha:  u8,
+    pub red:    u8,
+    pub green:  u8,
+    pub blue:   u8,
+}
+
+impl Color {
+    pub const WHITE: Self = Self {
+        alpha: u8::MAX,
+        red: u8::MAX,
+        green: u8::MAX,
+        blue: u8::MAX,
+    };
+
+    pub const RED: Self = Self {
+        alpha: 0xff,
+        red: 0xff,
+        green: 0,
+        blue: 0,
+    };
 }
 
 pub struct WlClient {
@@ -77,6 +101,13 @@ impl WlClient {
         else if Some(header.object) == self.layer_surface_id && header.opcode == 0 { // zwlr_layer_surface::configure
             self.layer_surface_configure(&event)?;
         }
+        else if Some(header.object) == self.surface_id && header.opcode == 2 { // wl_surface::preferred_buffer_scale
+            println!("Preferred buffer scale: {}", i32::from_ne_bytes(event[0..4].try_into().unwrap()));
+        }
+        else if Some(header.object) == self.surface_id && header.opcode == 3 { // wl_surface::preferred_buffer_transform
+            println!("Preferred buffer transform: {}", i32::from_ne_bytes(event[0..4].try_into().unwrap()));
+            dbg!(self);
+        }
         else {
             println!(
                 "Received event:\n\tObject: {}\n\tOpcode: {}\n\tSize: {}",
@@ -87,5 +118,32 @@ impl WlClient {
         }
 
         Ok(())
+    }
+}
+
+impl Debug for WlClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, 
+"WlClient {{
+    current_id: {},
+    registry_id: {},
+    shm_id: {},
+    buffer_id: {},
+    compositor_id: {},
+    surface_id: {},
+    xdg_wm_base_id: {},
+    layer_shell_id: {},
+    layer_surface_id: {},
+}}",
+            self.current_id,
+            self.registry_id.unwrap_or(0),
+            self.shm_id.unwrap_or(0),
+            self.buffer_id.unwrap_or(0),
+            self.compositor_id.unwrap_or(0),
+            self.surface_id.unwrap_or(0),
+            self.xdg_wm_base_id.unwrap_or(0),
+            self.layer_shell_id.unwrap_or(0),
+            self.layer_surface_id.unwrap_or(0),
+        )    
     }
 }

@@ -1,5 +1,5 @@
-use std::{io::Write, error::Error, os::unix::net::SocketAncillary};
-use crate::{WlClient, vec_utils::WlMessage, shm};
+use std::{error::Error, io::Write, os::unix::net::SocketAncillary, u8};
+use crate::{shm, surface::UnsetErr, vec_utils::WlMessage, wl_client::Color, WlClient};
 
 const STRIDE: usize = 4;
 
@@ -9,21 +9,14 @@ impl WlClient {
         println!("Received pixel format: {:x}", event.read_u32(&mut offset));
     }
 
-    pub fn wl_shm_create_pool(&mut self, width: usize, height: usize) -> Result<(), String> {
+    pub fn wl_shm_create_pool(&mut self, width: usize, height: usize) -> Result<(), Box<dyn Error>> {
         self.current_id += 1;
-        self.shm_pool = Some(match shm::ShmPool::new(width * height * STRIDE, self.current_id) {
-            Ok(val) => val,
-            Err(err) => {
-                return Err(err.to_string());
-            }
-        });
+        self.shm_pool = Some(shm::ShmPool::new(width * height * STRIDE, self.current_id)?);
 
-        let object = match self.shm_id {
-            Some(val) => val,
-            None => {
-                return Err("error in wl_shm_create_pool: shm_id not set!".to_string());
-            }
-        };
+        let data: Vec<Color> = vec![Color::RED; width * height];
+        self.shm_pool.as_mut().unwrap().write(&data, 0)?;
+
+        let object = self.shm_id.ok_or(UnsetErr("shm_id".to_string()))?;
         const OPCODE: u16 = 0;
         const REQ_SIZE: u16 = 16;
         let id          = self.shm_pool.as_ref().unwrap().id;
@@ -44,18 +37,15 @@ impl WlClient {
         
         let mut ancillary_buf = [0u8; 32];
         let mut ancillary = SocketAncillary::new(&mut ancillary_buf[..]);
+        
         if !ancillary.add_fds(&fds[..]) {
-            return Err("Error in wl_shm_create_pool: ancillary.add_fds failed".to_string());
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Failed to add FDs to ancillary data",
+            ).into());
         }
 
-        match self.socket.send_vectored_with_ancillary(&[std::io::IoSlice::new(&request)], &mut ancillary) {
-            Ok(bytes) => {
-                assert!(bytes == REQ_SIZE as usize);
-            }
-            Err(err) => {
-                return Err(err.to_string());
-            }
-        };
+        self.socket.send_vectored_with_ancillary(&[std::io::IoSlice::new(&request)], &mut ancillary)?;
 
         Ok(())
     }
