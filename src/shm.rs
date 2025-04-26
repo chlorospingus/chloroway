@@ -1,7 +1,5 @@
 use libc::{c_void, ftruncate, mmap, munmap, shm_open, shm_unlink, MAP_FAILED, MAP_SHARED, O_CREAT, O_EXCL, O_RDWR, PROT_READ, PROT_WRITE};
 
-use crate::wl_client::Color;
-
 #[derive(Clone)]
 pub struct ShmPool {
     pub fd: i32,
@@ -52,12 +50,12 @@ impl ShmPool {
         Ok(())
     }
 
-    pub fn write(&mut self, data: &Vec<Color>, offset: isize) -> std::io::Result<()> {
+    pub fn write(&mut self, data: &Vec<u32>, offset: isize) -> std::io::Result<()> {
         // TODO: Bounds check
         unsafe {
             std::ptr::copy_nonoverlapping(
-                data.as_ptr().offset(offset) as *const Color, // src: data as *const Color
-                self.addr.offset(2) as *mut Color, // dst: ShmPool address as *mut Color
+                data.as_ptr() as *const u32, // src: data as *const u32
+                self.addr.offset(offset*4) as *mut u32, // dst: ShmPool address as *mut u32
                 data.len()
             );
         }

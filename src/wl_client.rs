@@ -8,35 +8,13 @@ struct WlHeader {
     size:   u16,
 }
 
-#[derive(Clone)]
-pub struct Color {
-    pub alpha:  u8,
-    pub red:    u8,
-    pub green:  u8,
-    pub blue:   u8,
-}
-
-impl Color {
-    pub const WHITE: Self = Self {
-        alpha: u8::MAX,
-        red: u8::MAX,
-        green: u8::MAX,
-        blue: u8::MAX,
-    };
-
-    pub const RED: Self = Self {
-        alpha: 0xff,
-        red: 0xff,
-        green: 0,
-        blue: 0,
-    };
-
-    pub const BLACK: Self = Self {
-        alpha: 0xff,
-        red: 0,
-        green: 0,
-        blue: 0,
-    };
+pub mod color {
+    pub const WHITE:    u32 = 0xffffffff;
+    pub const BLACK:    u32 = 0xff000000;
+    pub const RED:      u32 = 0xffff0000;
+    pub const GREEN:    u32 = 0xff00ff00;
+    pub const BLUE:     u32 = 0xff0000ff;
+    pub const SAPPHIRE: u32 = 0xff74c7ec;
 }
 
 pub struct WlClient {

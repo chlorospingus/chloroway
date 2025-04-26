@@ -1,5 +1,5 @@
 use std::{error::Error, io::Write, os::unix::net::SocketAncillary, u8};
-use crate::{shm, surface::UnsetErr, vec_utils::WlMessage, wl_client::Color, WlClient};
+use crate::{shm, surface::UnsetErr, vec_utils::WlMessage, wl_client::color, WlClient};
 
 const STRIDE: usize = 4;
 
@@ -13,8 +13,12 @@ impl WlClient {
         self.current_id += 1;
         self.shm_pool = Some(shm::ShmPool::new(width * height * STRIDE, self.current_id)?);
 
-        let data: Vec<Color> = vec![Color::RED; width * height];
-        self.shm_pool.as_mut().unwrap().write(&data, 0)?;
+        self.shm_pool.as_mut().unwrap().write(&vec![color::RED;     width * height/6], 0)?;
+        self.shm_pool.as_mut().unwrap().write(&vec![color::GREEN;   width * height/6], (width*height*1/6) as isize)?;
+        self.shm_pool.as_mut().unwrap().write(&vec![color::BLUE;    width * height/6], (width*height*2/6) as isize)?;
+        self.shm_pool.as_mut().unwrap().write(&vec![color::WHITE;   width * height/6], (width*height*3/6) as isize)?;
+        self.shm_pool.as_mut().unwrap().write(&vec![color::BLACK;   width * height/6], (width*height*4/6) as isize)?;
+        self.shm_pool.as_mut().unwrap().write(&vec![color::SAPPHIRE;width * height/6], (width*height*5/6) as isize)?;
 
         let object = self.shm_id.ok_or(UnsetErr("shm_id".to_string()))?;
         const OPCODE: u16 = 0;
