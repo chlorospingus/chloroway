@@ -30,6 +30,13 @@ impl Color {
         green: 0,
         blue: 0,
     };
+
+    pub const BLACK: Self = Self {
+        alpha: 0xff,
+        red: 0,
+        green: 0,
+        blue: 0,
+    };
 }
 
 pub struct WlClient {
