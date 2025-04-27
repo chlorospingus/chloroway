@@ -2,14 +2,17 @@ use libc::{c_void, ftruncate, mmap, munmap, shm_open, shm_unlink, MAP_FAILED, MA
 
 #[derive(Clone)]
 pub struct ShmPool {
-    pub fd: i32,
-    pub id: u32,
-    pub addr: *mut c_void,
-    pub size: usize,
+    pub fd:     i32,
+    pub id:     u32,
+    pub addr:   *mut c_void,
+    pub size:   usize,
+    pub width:  usize,
 }
 
 impl ShmPool {
-    pub fn new(size: usize, id: u32) -> std::io::Result<ShmPool> {
+    pub fn new(width: usize, height: usize, id: u32) -> std::io::Result<ShmPool> {
+        let size = width * height * 4;
+
         let shm_path: *const i8 = b"/chlorostart\0".as_ptr() as *const i8;
         let fd = unsafe { shm_open(shm_path, O_RDWR | O_EXCL | O_CREAT, 0o600) };
         if fd == -1 {
@@ -37,7 +40,8 @@ impl ShmPool {
             fd,
             id,
             addr,
-            size 
+            size,
+            width,
         })
     }
 
@@ -50,17 +54,31 @@ impl ShmPool {
         Ok(())
     }
 
-    pub fn write(&mut self, data: &Vec<u32>, offset: isize) -> std::io::Result<()> {
-        // TODO: Bounds check
+    pub fn write(&mut self, data: &Vec<u32>, offset: usize) {
+        if offset > self.size {
+            return;
+        }
         unsafe {
             std::ptr::copy_nonoverlapping(
                 data.as_ptr() as *const u32, // src: data as *const u32
-                self.addr.offset(offset*4) as *mut u32, // dst: ShmPool address as *mut u32
-                data.len()
+                self.addr.offset(4*offset as isize) as *mut u32, // dst: ShmPool address as *mut u32
+                if offset + data.len() * 4 <= self.size {
+                    data.len()
+                } else {
+                    data.len() - offset
+                }
             );
         }
+    }
 
-        Ok(())
+    pub fn write_pixel(&mut self, data: u32, offset: isize) {
+        // TODO: Bounds check
+        unsafe {*(self.addr.offset(offset*4) as *mut u32) = data;}
+    }
+
+    pub fn read_pixel(&self, offset: usize) -> u32 {
+        // TODO: Bounds check
+        return unsafe {*(self.addr.offset(4*offset as isize) as *const u32)};
     }
 }
 
