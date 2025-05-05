@@ -12,10 +12,13 @@ impl WlClient {
     pub fn wl_shm_create_pool(&mut self, width: usize, height: usize) -> Result<(), Box<dyn Error>> {
         self.current_id += 1;
         self.shm_pool = Some(shm::ShmPool::new(width, height, self.current_id)?);
-        self.shm_pool.as_mut().unwrap().write(&vec![0xffff0000; width * height], 0);
-        self.shm_pool.as_mut().unwrap().rectangle(50, 50, 50, 50, 0xff00ff00);
-        self.shm_pool.as_mut().unwrap().circle(300, 300, 200, 0xff0000ff);
-        self.shm_pool.as_mut().unwrap().rounded_rectangle(450, 400, 60, 40, 16, 0xffffff00);
+        let mut grid: Vec<u32> = vec![0xffffffff; width * height];
+        for (pos, color) in grid.iter_mut().enumerate() {
+            if (pos & 1) == 0 {
+                *color = 0xff000000;
+            }
+        }
+        self.shm_pool.as_mut().unwrap().write(&grid, 0);
 
         let object = self.shm_id.ok_or(UnsetErr("shm_id".to_string()))?;
         const OPCODE: u16 = 0;

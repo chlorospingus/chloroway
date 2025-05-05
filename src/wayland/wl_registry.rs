@@ -19,12 +19,12 @@ impl WlClient {
         self.wl_compositor_create_surface()?;
         self.layer_shell_get_layer_surface()?;
 
-        self.layer_surface_set_size(800, 800)?;
+        self.layer_surface_set_size(18, 5)?;
         self.layer_surface_set_keyboard_interactivity()?;
         self.wl_surface_commit()?;
 
-        self.wl_shm_create_pool(800, 800)?;
-        self.wl_shm_pool_create_buffer(0, 800, 800)?;
+        self.wl_shm_create_pool(18, 5)?;
+        self.wl_shm_pool_create_buffer(0, 18, 5)?;
 
         Ok(())
     }
