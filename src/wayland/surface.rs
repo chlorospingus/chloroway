@@ -16,11 +16,10 @@ impl fmt::Display for UnsetErr {
 
 impl WlClient {
     pub fn wl_compositor_create_surface(&mut self) -> Result<(), Box<dyn Error>> {
-        if self.compositor_id.is_none() {
+        let object = self.compositor_id.load(Ordering::Relaxed);
+        if object == 0 {
             return Err(UnsetErr("compositor_id".to_string()).into());
         }
-
-        let object = self.compositor_id.unwrap();
         const OPCODE: u16 = 0;
         const MSG_SIZE: u16 = 12;
 
@@ -36,19 +35,22 @@ impl WlClient {
 
         self.socket.write(&request)?;
 
-        self.surface_id = Some(current_id);
+        self.surface_id.store(current_id, Ordering::Relaxed);
 
         Ok(())
     }
 
     pub fn wl_surface_attach(&mut self) -> Result<(), Box<dyn Error>> {
-        if self.surface_id.is_none() {
-            return Err(Box::new(UnsetErr("surface_id".to_string())));
+        let object = self.surface_id.load(Ordering::Relaxed);
+        if object == 0 {
+            return Err(UnsetErr("surface_id".to_string()).into());
         }
-        let object = self.surface_id.unwrap();
         const OPCODE: u16 = 1;
         const MSG_SIZE: u16 = 20;
-        let buffer = self.buffer_id.unwrap();
+        let buffer = self.buffer_id.load(Ordering::Relaxed);
+        if buffer == 0 {
+            return Err(UnsetErr("buffer_id".to_string()).into());
+        }
         const X: u32 = 0;
         const Y: u32 = 0;
 
@@ -68,7 +70,10 @@ impl WlClient {
     }
 
     pub fn wl_surface_commit(&mut self) -> Result<(), Box<dyn Error>> {
-        let object = self.surface_id.unwrap();
+        let object = self.surface_id.load(Ordering::Relaxed);
+        if object == 0 {
+            return Err(UnsetErr("surface_id".to_string()).into());
+        }
         const OPCODE: u16 = 6;
         const MSG_SIZE: u16 = 8;
 
@@ -85,10 +90,10 @@ impl WlClient {
     }
 
     pub fn xdg_wm_base_pong(&mut self, event: &Vec<u8>) -> Result<(), Box<dyn Error>> {
-        if self.xdg_wm_base_id.is_none() {
-            return Err(Box::new(UnsetErr("xdg_wm_base_id".to_string())));
+        let object = self.xdg_wm_base_id.load(Ordering::Relaxed);
+        if object == 0 {
+            return Err(UnsetErr("xdg_wm_base_id".to_string()).into());
         }
-        let object = self.xdg_wm_base_id.unwrap();
         const OPCODE: u16 = 3;
         const MSG_SIZE: u16 = 12;
         let serial = u32::from_ne_bytes(event[0..4].try_into().unwrap());

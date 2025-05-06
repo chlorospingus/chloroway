@@ -12,14 +12,14 @@ pub struct WlClient {
     pub socket:             UnixStream,
     pub current_id:         AtomicU32,
     pub registry_id:        AtomicU32,
-    pub shm_id:             Option<u32>,
+    pub shm_id:             AtomicU32,
     pub shm_pool:           Arc<Mutex<Option<shm::ShmPool>>>,
-    pub buffer_id:          Option<u32>,
-    pub compositor_id:      Option<u32>,
-    pub surface_id:         Option<u32>,
-    pub xdg_wm_base_id:     Option<u32>,
-    pub layer_shell_id:     Option<u32>,
-    pub layer_surface_id:   Option<u32>,
+    pub buffer_id:          AtomicU32,
+    pub compositor_id:      AtomicU32,
+    pub surface_id:         AtomicU32,
+    pub xdg_wm_base_id:     AtomicU32,
+    pub layer_shell_id:     AtomicU32,
+    pub layer_surface_id:   AtomicU32,
 }
 
 impl WlClient {
@@ -34,14 +34,14 @@ impl WlClient {
             socket:             sock,
             current_id:         AtomicU32::from(1),
             registry_id:        AtomicU32::from(0),
-            shm_id:             None,
+            shm_id:             AtomicU32::from(0),
             shm_pool:           Arc::new(Mutex::new(None)),
-            buffer_id:          None,
-            compositor_id:      None,
-            surface_id:         None,
-            xdg_wm_base_id:     None,
-            layer_shell_id:     None,
-            layer_surface_id:   None,
+            buffer_id:          AtomicU32::from(0),
+            compositor_id:      AtomicU32::from(0),
+            surface_id:         AtomicU32::from(0),
+            xdg_wm_base_id:     AtomicU32::from(0),
+            layer_shell_id:     AtomicU32::from(0),
+            layer_surface_id:   AtomicU32::from(0),
         };
 
         let shm_pool = wl_client.shm_pool.clone();
@@ -79,22 +79,22 @@ impl WlClient {
         if header.object == self.registry_id.load(Ordering::Relaxed) && header.opcode == 0 { // wl_registry::global
             self.wl_registry_global(&event)?;
         }
-        else if header.object == 1 && header.opcode == 0 { // wl_display::error
+        else if header.object == self.registry_id.load(Ordering::Relaxed) && header.opcode == 0 { // wl_display::error
             WlClient::wl_display_error(&event);
         }
-        else if self.shm_id.is_some() && header.object == self.shm_id.unwrap() && header.opcode == 0 { // wl_shm::format
+        else if header.object == self.shm_id.load(Ordering::Relaxed) && header.opcode == 0 { // wl_shm::format
             WlClient::wl_shm_format(&event);
         }
-        else if self.xdg_wm_base_id.is_some() && header.object == self.xdg_wm_base_id.unwrap() && header.opcode == 0 { // xdg_wm_base::ping
+        else if header.object == self.xdg_wm_base_id.load(Ordering::Relaxed) && header.opcode == 0 { // xdg_wm_base::ping
             self.xdg_wm_base_pong(&event)?;
         }
-        else if Some(header.object) == self.layer_surface_id && header.opcode == 0 { // zwlr_layer_surface::configure
+        else if header.object == self.layer_surface_id.load(Ordering::Relaxed) && header.opcode == 0 { // zwlr_layer_surface::configure
             self.layer_surface_configure(&event)?;
         }
-        else if Some(header.object) == self.surface_id && header.opcode == 2 { // wl_surface::preferred_buffer_scale
+        else if header.object == self.surface_id.load(Ordering::Relaxed) && header.opcode == 2 { // wl_surface::preferred_buffer_scale
             println!("Preferred buffer scale: {}", i32::from_ne_bytes(event[0..4].try_into().unwrap()));
         }
-        else if Some(header.object) == self.surface_id && header.opcode == 3 { // wl_surface::preferred_buffer_transform
+        else if header.object == self.surface_id.load(Ordering::Relaxed) && header.opcode == 3 { // wl_surface::preferred_buffer_transform
             println!("Preferred buffer transform: {}", i32::from_ne_bytes(event[0..4].try_into().unwrap()));
         }
         else {

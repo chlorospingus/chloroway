@@ -18,7 +18,10 @@ impl WlClient {
         shm_pool.as_mut().unwrap().circle(300, 300, 200, 0xff0000ff);
         shm_pool.as_mut().unwrap().rounded_rectangle(450, 400, 60, 40, 16, 0xffffff00);
 
-        let object = self.shm_id.ok_or(UnsetErr("shm_id".to_string()))?;
+        let object = self.shm_id.load(Ordering::Relaxed);
+        if object == 0 {
+            return Err(UnsetErr("shm_id".to_string()).into());
+        }
         const OPCODE: u16 = 0;
         const REQ_SIZE: u16 = 16;
         let id          = shm_pool.as_ref().unwrap().id;
@@ -83,7 +86,7 @@ impl WlClient {
 
         self.socket.write(&request)?;
 
-        self.buffer_id = Some(current_id);
+        self.buffer_id.store(current_id, Ordering::Relaxed);
 
         Ok(())
     }

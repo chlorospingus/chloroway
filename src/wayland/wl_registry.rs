@@ -3,16 +3,16 @@ use std::{error::Error, io::Write, sync::atomic::{AtomicU32, Ordering}};
 
 impl WlClient {
     fn init_toplevel(&mut self) -> Result<(), Box<dyn Error>> {
-        if self.shm_id.is_none() {
+        if self.shm_id.load(Ordering::Relaxed) == 0 {
             return Err(Box::new(UnsetErr("shm_id".to_string())));
         }
-        if self.compositor_id.is_none() {
+        if self.compositor_id.load(Ordering::Relaxed) == 0 {
             return Err(Box::new(UnsetErr("compositor_id".to_string())));
         }
-        if self.xdg_wm_base_id.is_none() {
+        if self.xdg_wm_base_id.load(Ordering::Relaxed) == 0 {
             return Err(Box::new(UnsetErr("xdg_wm_base_id".to_string())));
         }
-        if self.layer_shell_id.is_none() {
+        if self.layer_shell_id.load(Ordering::Relaxed) == 0 {
             return Err(UnsetErr("layer_shell_id".to_string()).into());
         }
         println!("Initializing toplevel!");
@@ -45,7 +45,7 @@ impl WlClient {
         request.write_u32(&current_id, &mut offset);
 
         self.socket.write(&request)?;
-        self.registry_id = AtomicU32::from(current_id);
+        self.registry_id.store(current_id, Ordering::Relaxed);
 
         Ok(())
     }
@@ -74,7 +74,7 @@ impl WlClient {
                 &version,
                 &current_id
             )?;
-            self.shm_id = Some(current_id);
+            self.shm_id.store(current_id, Ordering::Relaxed);
             self.init_toplevel().unwrap_or_else(|err| {eprintln!("{}", err)});
         }
 
@@ -86,7 +86,7 @@ impl WlClient {
                 &version,
                 &current_id
             )?;
-            self.compositor_id = Some(current_id);
+            self.compositor_id.store(current_id, Ordering::Relaxed);
             self.init_toplevel().unwrap_or_else(|err| {eprintln!("{}", err)});
         }
 
@@ -98,7 +98,7 @@ impl WlClient {
                 &version,
                 &current_id
             )?;
-            self.xdg_wm_base_id = Some(current_id);
+            self.xdg_wm_base_id.store(current_id, Ordering::Relaxed);
             self.init_toplevel().unwrap_or_else(|err| {eprintln!("{}", err)});
         }
 
@@ -110,7 +110,7 @@ impl WlClient {
                 &version,
                 &current_id
             )?;
-            self.layer_shell_id = Some(current_id);
+            self.layer_shell_id.store(current_id, Ordering::Relaxed);
             self.init_toplevel().unwrap_or_else(|err| {eprintln!("{}", err)});
         }
 

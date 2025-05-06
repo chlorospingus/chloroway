@@ -1,5 +1,5 @@
 use std::{error::Error, io::Write, sync::atomic::Ordering};
-use crate::wayland::{vec_utils::WlMessage, wl_client::WlClient};
+use crate::wayland::{surface::UnsetErr, vec_utils::WlMessage, wl_client::WlClient};
 
 const NAMESPACE: &str = "chlorostart";
 const OVERLAY: u32 = 3;
@@ -7,7 +7,11 @@ const EXCLUSIVE: u32 = 0; // exclusize keyboard focus
 
 impl WlClient {
     pub fn layer_shell_get_layer_surface(&mut self) -> Result<(), Box<dyn Error>> {
-        let object: u32 = self.layer_shell_id.unwrap();
+        // TODO: Make sure layer_surface_id isn't already set
+        let object: u32 = self.layer_shell_id.load(Ordering::Relaxed);
+        if object == 0 {
+            return Err(UnsetErr("layer_shell_id".to_string()).into());
+        }
         const OPCODE: u16 = 0;
         let msg_size: u16 = 28 + (NAMESPACE.len()+1).next_multiple_of(4) as u16;
         let output: u32 = 0;
@@ -21,13 +25,19 @@ impl WlClient {
 
         let current_id = self.current_id.fetch_add(1, Ordering::Relaxed) + 1;
         request.write_u32(&current_id, &mut offset);
-        request.write_u32(&self.surface_id.unwrap(), &mut offset);
+
+        let surface_id = self.surface_id.load(Ordering::Relaxed);
+        if surface_id == 0 {
+            return Err(UnsetErr("surface_id".to_string()).into());
+        }
+
+        request.write_u32(&surface_id, &mut offset);
         request.write_u32(&output, &mut offset);
         request.write_u32(&OVERLAY, &mut offset);
         request.write_string(&NAMESPACE.to_string(), &mut offset);
 
         self.socket.write(&request)?;
-        self.layer_surface_id = Some(current_id);
+        self.layer_surface_id.store(current_id, Ordering::Relaxed);
 
         Ok(())
     }
@@ -41,7 +51,10 @@ impl WlClient {
         // TODO: Resize based on configure
 
         // Ack configure
-        let object = self.layer_surface_id.unwrap();
+        let object = self.layer_surface_id.load(Ordering::Relaxed);
+        if object == 0 {
+            return Err(UnsetErr("layer_surface_id".to_string()).into());
+        }
         const OPCODE: u16 = 6;
         const MSG_SIZE: u16 = 12;
 
@@ -63,7 +76,10 @@ impl WlClient {
     }
 
     pub fn layer_surface_set_size(&mut self, width: u32, height: u32) -> Result<(), Box<dyn Error>> {
-        let object: u32 = self.layer_surface_id.unwrap();
+        let object: u32 = self.layer_surface_id.load(Ordering::Relaxed);
+        if object == 0 {
+            return Err(UnsetErr("layer_surface_id".to_string()).into());
+        }
         const OPCODE: u16 = 0;
         const MSG_SIZE: u16 = 20;
 
@@ -83,7 +99,10 @@ impl WlClient {
     }
 
     pub fn layer_surface_set_keyboard_interactivity(&mut self) -> Result<(), Box<dyn Error>> {
-        let object: u32 = self.layer_surface_id.unwrap();
+        let object: u32 = self.layer_surface_id.load(Ordering::Relaxed);
+        if object == 0 {
+            return Err(UnsetErr("layer_surface_id".to_string()).into());
+        }
         const OPCODE: u16 = 4;
         const MSG_SIZE: u16 = 12;
 
