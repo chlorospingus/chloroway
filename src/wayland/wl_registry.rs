@@ -1,5 +1,5 @@
 use crate::wayland::{surface::UnsetErr, vec_utils::WlMessage, wl_client::WlClient};
-use std::{io::Write, error::Error};
+use std::{error::Error, io::Write, sync::atomic::{AtomicU32, Ordering}};
 
 impl WlClient {
     fn init_toplevel(&mut self) -> Result<(), Box<dyn Error>> {
@@ -41,12 +41,11 @@ impl WlClient {
         request.write_u16(&OPCODE,   &mut offset);
         request.write_u16(&MSG_SIZE, &mut offset);
 
-        self.current_id += 1;
-        request.write_u32(&self.current_id, &mut offset);
-        self.registry_id = Some(self.current_id);
+        let current_id = self.current_id.fetch_add(1, Ordering::Relaxed) + 1;
+        request.write_u32(&current_id, &mut offset);
 
-        let written = self.socket.write(&request)?;
-        assert!(written == MSG_SIZE.into());
+        self.socket.write(&request)?;
+        self.registry_id = AtomicU32::from(current_id);
 
         Ok(())
     }
@@ -68,50 +67,50 @@ impl WlClient {
         // TODO: Collapse these into one line (probably using a macro)
 
         if interface == "wl_shm" {
-            self.current_id += 1;
+            let current_id = self.current_id.fetch_add(1, Ordering::Relaxed) + 1;
             self.wl_registry_bind(
                 &name,
                 &interface,
                 &version,
-                &self.current_id.clone()
+                &current_id
             )?;
-            self.shm_id = Some(self.current_id);
+            self.shm_id = Some(current_id);
             self.init_toplevel().unwrap_or_else(|err| {eprintln!("{}", err)});
         }
 
         if interface == "wl_compositor" {
-            self.current_id += 1;
+            let current_id = self.current_id.fetch_add(1, Ordering::Relaxed) + 1;
             self.wl_registry_bind(
                 &name,
                 &interface,
                 &version,
-                &self.current_id.clone()
+                &current_id
             )?;
-            self.compositor_id = Some(self.current_id);
+            self.compositor_id = Some(current_id);
             self.init_toplevel().unwrap_or_else(|err| {eprintln!("{}", err)});
         }
 
         if interface == "xdg_wm_base" {
-            self.current_id += 1;
+            let current_id = self.current_id.fetch_add(1, Ordering::Relaxed) + 1;
             self.wl_registry_bind(
                 &name,
                 &interface,
                 &version,
-                &self.current_id.clone()
+                &current_id
             )?;
-            self.xdg_wm_base_id = Some(self.current_id);
+            self.xdg_wm_base_id = Some(current_id);
             self.init_toplevel().unwrap_or_else(|err| {eprintln!("{}", err)});
         }
 
         if interface == "zwlr_layer_shell_v1" {
-            self.current_id += 1;
+            let current_id = self.current_id.fetch_add(1, Ordering::Relaxed) + 1;
             self.wl_registry_bind(
                 &name,
                 &interface,
                 &version,
-                &self.current_id.clone()
+                &current_id
             )?;
-            self.layer_shell_id = Some(self.current_id);
+            self.layer_shell_id = Some(current_id);
             self.init_toplevel().unwrap_or_else(|err| {eprintln!("{}", err)});
         }
 
@@ -124,11 +123,11 @@ impl WlClient {
         interface: &String,
         version: &u32,
         id: &u32
-    ) -> Result<(), String> {
-        let object: u32 = match self.registry_id {
-            Some(id) => id,
-            None => return Err(String::from("wl_registry_bind failed: wl_state.registry_id not set!"))
-        };
+    ) -> Result<(), Box<dyn Error>> {
+        let object: u32 = self.registry_id.load(Ordering::Relaxed);
+        if object == 0 {
+            return Err(UnsetErr("registry_id".to_string()).into());
+        }
         const OPCODE: u16 = 0;
 
         let req_size: u16 = 24 + ((interface.len() as u16+3) & (u16::MAX-3));
@@ -144,14 +143,7 @@ impl WlClient {
         request.write_u32    (&version,   &mut offset);
         request.write_u32    (&id,        &mut offset);
 
-        match self.socket.write(&request) {
-            Ok(bytes) => {
-                assert!(bytes == req_size as usize)
-            }
-            Err(err) => {
-                return Err(err.to_string());
-            }
-        };
+        self.socket.write(&request)?;
 
         Ok(())
     }

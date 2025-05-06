@@ -1,4 +1,4 @@
-use std::{error::Error, io::Write};
+use std::{error::Error, io::Write, sync::atomic::Ordering};
 
 use crate::wayland::{vec_utils::WlMessage, wl_client::WlClient};
 
@@ -31,12 +31,12 @@ impl WlClient {
         request.write_u16(&OPCODE, &mut offset);
         request.write_u16(&MSG_SIZE, &mut offset);
 
-        self.current_id += 1;
-        request.write_u32(&self.current_id, &mut offset);
+        let current_id = self.current_id.fetch_add(1, Ordering::Relaxed) + 1;
+        request.write_u32(&current_id, &mut offset);
 
         self.socket.write(&request)?;
 
-        self.surface_id = Some(self.current_id);
+        self.surface_id = Some(current_id);
 
         Ok(())
     }

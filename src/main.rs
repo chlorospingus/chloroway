@@ -8,15 +8,5 @@ mod graphics;
 fn main() -> Result<(), Box<dyn Error>> {
     let mut wl_client = WlClient::new()?;
 
-    wl_client.wl_display_get_registry()?;
-
-    loop {
-        wl_client.read_event()?;
-
-        if false {
-            break
-        }
-    }
-
     Ok(())
 }

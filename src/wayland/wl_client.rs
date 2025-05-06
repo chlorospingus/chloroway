@@ -1,4 +1,4 @@
-use std::{env::var, error::Error, fmt::Debug, io::Read, os::unix::net::UnixStream, u32};
+use std::{env::var, error::Error, fmt::Debug, io::Read, os::unix::net::UnixStream, sync::{atomic::{AtomicU32, Ordering}, Arc, Mutex}, thread, u32};
 
 use crate::wayland::shm;
 
@@ -10,10 +10,10 @@ struct WlHeader {
 
 pub struct WlClient {
     pub socket:             UnixStream,
-    pub current_id:         u32,
-    pub registry_id:        Option<u32>,
+    pub current_id:         AtomicU32,
+    pub registry_id:        AtomicU32,
     pub shm_id:             Option<u32>,
-    pub shm_pool:           Option<shm::ShmPool>,
+    pub shm_pool:           Arc<Mutex<Option<shm::ShmPool>>>,
     pub buffer_id:          Option<u32>,
     pub compositor_id:      Option<u32>,
     pub surface_id:         Option<u32>,
@@ -30,12 +30,12 @@ impl WlClient {
             var("WAYLAND_DISPLAY")?
         ))?;
 
-        let res = WlClient {
+        let mut wl_client = WlClient {
             socket:             sock,
-            current_id:         1, 
-            registry_id:        None,
+            current_id:         AtomicU32::from(1),
+            registry_id:        AtomicU32::from(0),
             shm_id:             None,
-            shm_pool:           None,
+            shm_pool:           Arc::new(Mutex::new(None)),
             buffer_id:          None,
             compositor_id:      None,
             surface_id:         None,
@@ -44,7 +44,21 @@ impl WlClient {
             layer_surface_id:   None,
         };
 
-        Ok(res)
+        let shm_pool = wl_client.shm_pool.clone();
+        thread::spawn(move || {
+        }).join();
+
+        wl_client.wl_display_get_registry()?;
+
+        loop {
+            wl_client.read_event()?;
+
+            if false {
+                break
+            }
+        }
+
+        Ok(wl_client)
     }
 
     pub fn read_event(&mut self) -> Result<(), Box<dyn Error>> {
@@ -62,7 +76,7 @@ impl WlClient {
         let mut event = vec![0u8; header.size as usize - 8];
         self.socket.read_exact(&mut event)?;
 
-        if header.object == self.registry_id.unwrap() && header.opcode == 0 { // wl_registry::global
+        if header.object == self.registry_id.load(Ordering::Relaxed) && header.opcode == 0 { // wl_registry::global
             self.wl_registry_global(&event)?;
         }
         else if header.object == 1 && header.opcode == 0 { // wl_display::error
@@ -82,7 +96,6 @@ impl WlClient {
         }
         else if Some(header.object) == self.surface_id && header.opcode == 3 { // wl_surface::preferred_buffer_transform
             println!("Preferred buffer transform: {}", i32::from_ne_bytes(event[0..4].try_into().unwrap()));
-            dbg!(self);
         }
         else {
             println!(
@@ -94,32 +107,5 @@ impl WlClient {
         }
 
         Ok(())
-    }
-}
-
-impl Debug for WlClient {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, 
-"WlClient {{
-    current_id: {},
-    registry_id: {},
-    shm_id: {},
-    buffer_id: {},
-    compositor_id: {},
-    surface_id: {},
-    xdg_wm_base_id: {},
-    layer_shell_id: {},
-    layer_surface_id: {},
-}}",
-            self.current_id,
-            self.registry_id.unwrap_or(0),
-            self.shm_id.unwrap_or(0),
-            self.buffer_id.unwrap_or(0),
-            self.compositor_id.unwrap_or(0),
-            self.surface_id.unwrap_or(0),
-            self.xdg_wm_base_id.unwrap_or(0),
-            self.layer_shell_id.unwrap_or(0),
-            self.layer_surface_id.unwrap_or(0),
-        )    
     }
 }

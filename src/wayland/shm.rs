@@ -87,3 +87,6 @@ impl Drop for ShmPool {
         unsafe { munmap(self.addr, self.size); }
     }
 }
+
+unsafe impl Send for ShmPool {}
+unsafe impl Sync for ShmPool {}
