@@ -36,7 +36,7 @@ impl WlClient {
         request.write_u32(&OVERLAY, &mut offset);
         request.write_string(&NAMESPACE.to_string(), &mut offset);
 
-        self.socket.write(&request)?;
+        self.socket.lock().unwrap().write(&request)?;
         self.layer_surface_id.store(current_id, Ordering::Relaxed);
 
         Ok(())
@@ -67,7 +67,7 @@ impl WlClient {
 
         request.write_u32(&serial, &mut offset);
 
-        self.socket.write(&request)?;
+        self.socket.lock().unwrap().write(&request)?;
 
         self.wl_surface_attach()?;
         self.wl_surface_commit()?;
@@ -93,7 +93,7 @@ impl WlClient {
         request.write_u32(&width,    &mut offset);
         request.write_u32(&height,   &mut offset);
 
-        self.socket.write(&request)?;
+        self.socket.lock().unwrap().write(&request)?;
 
         Ok(())
     }
@@ -115,7 +115,7 @@ impl WlClient {
 
         request.write_u32(&EXCLUSIVE, &mut offset);
 
-        self.socket.write(&request)?;
+        self.socket.lock().unwrap().write(&request)?;
 
         Ok(())
     }

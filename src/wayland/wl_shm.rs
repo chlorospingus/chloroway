@@ -50,7 +50,7 @@ impl WlClient {
             ).into());
         }
 
-        self.socket.send_vectored_with_ancillary(&[std::io::IoSlice::new(&request)], &mut ancillary)?;
+        self.socket.lock().unwrap().send_vectored_with_ancillary(&[std::io::IoSlice::new(&request)], &mut ancillary)?;
 
         Ok(())
     }
@@ -84,7 +84,7 @@ impl WlClient {
         request.write_u32(&stride,      &mut offset);
         request.write_u32(&format,      &mut offset);
 
-        self.socket.write(&request)?;
+        self.socket.lock().unwrap().write(&request)?;
 
         self.buffer_id.store(current_id, Ordering::Relaxed);
 

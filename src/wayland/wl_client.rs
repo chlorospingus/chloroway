@@ -9,11 +9,11 @@ struct WlHeader {
 }
 
 pub struct WlClient {
-    pub socket:             UnixStream,
+    pub socket:             Mutex<UnixStream>,
     pub current_id:         AtomicU32,
     pub registry_id:        AtomicU32,
     pub shm_id:             AtomicU32,
-    pub shm_pool:           Arc<Mutex<Option<shm::ShmPool>>>,
+    pub shm_pool:           Mutex<Option<shm::ShmPool>>,
     pub buffer_id:          AtomicU32,
     pub compositor_id:      AtomicU32,
     pub surface_id:         AtomicU32,
@@ -31,11 +31,11 @@ impl WlClient {
         ))?;
 
         let mut wl_client = WlClient {
-            socket:             sock,
+            socket:             Mutex::new(sock),
             current_id:         AtomicU32::from(1),
             registry_id:        AtomicU32::from(0),
             shm_id:             AtomicU32::from(0),
-            shm_pool:           Arc::new(Mutex::new(None)),
+            shm_pool:           Mutex::new(None),
             buffer_id:          AtomicU32::from(0),
             compositor_id:      AtomicU32::from(0),
             surface_id:         AtomicU32::from(0),
@@ -44,18 +44,13 @@ impl WlClient {
             layer_surface_id:   AtomicU32::from(0),
         };
 
-        let shm_pool = wl_client.shm_pool.clone();
+        wl_client.wl_display_get_registry()?;
+
         thread::spawn(move || {
         }).join();
 
-        wl_client.wl_display_get_registry()?;
-
         loop {
-            wl_client.read_event()?;
-
-            if false {
-                break
-            }
+            wl_client.read_event();
         }
 
         Ok(wl_client)
@@ -65,7 +60,8 @@ impl WlClient {
         // TODO: Don't realloc header and event
 
         let mut header = vec![0u8; 8];
-        self.socket.read_exact(&mut header)?;
+        let mut socket = self.socket.lock().unwrap();
+        socket.read_exact(&mut header)?;
 
         let header = WlHeader {
             object: u32::from_ne_bytes(header[0..4].try_into()?),
@@ -74,7 +70,8 @@ impl WlClient {
         };
 
         let mut event = vec![0u8; header.size as usize - 8];
-        self.socket.read_exact(&mut event)?;
+        socket.read_exact(&mut event)?;
+        drop(socket);
 
         if header.object == self.registry_id.load(Ordering::Relaxed) && header.opcode == 0 { // wl_registry::global
             self.wl_registry_global(&event)?;

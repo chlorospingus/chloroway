@@ -44,7 +44,7 @@ impl WlClient {
         let current_id = self.current_id.fetch_add(1, Ordering::Relaxed) + 1;
         request.write_u32(&current_id, &mut offset);
 
-        self.socket.write(&request)?;
+        self.socket.lock().unwrap().write(&request)?;
         self.registry_id.store(current_id, Ordering::Relaxed);
 
         Ok(())
@@ -143,7 +143,7 @@ impl WlClient {
         request.write_u32    (&version,   &mut offset);
         request.write_u32    (&id,        &mut offset);
 
-        self.socket.write(&request)?;
+        self.socket.lock().unwrap().write(&request)?;
 
         Ok(())
     }
