@@ -9,7 +9,7 @@ impl WlClient {
         println!("Received pixel format: {:x}", event.read_u32(&mut offset));
     }
 
-    pub fn wl_shm_create_pool(&mut self, width: usize, height: usize) -> Result<(), Box<dyn Error>> {
+    pub fn wl_shm_create_pool(&self, width: usize, height: usize) -> Result<(), Box<dyn Error>> {
         let mut shm_pool = self.shm_pool.lock().unwrap();
         let current_id = self.current_id.fetch_add(1, Ordering::Relaxed) + 1;
         *shm_pool = Some(shm::ShmPool::new(width, height, current_id)?);
@@ -56,7 +56,7 @@ impl WlClient {
     }
 
     pub fn wl_shm_pool_create_buffer(
-        &mut self,
+        &self,
         shm_offset: u32,
         width:      u32,
         height:     u32

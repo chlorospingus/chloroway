@@ -1,4 +1,4 @@
-use std::{env::var, error::Error, fmt::Debug, io::Read, os::unix::net::UnixStream, sync::{atomic::{AtomicU32, Ordering}, Arc, Mutex}, thread, u32};
+use std::{env::var, error::Error, fmt::Debug, io::Read, os::unix::net::UnixStream, sync::{atomic::{AtomicU32, Ordering}, Arc, Mutex}, thread::{self, JoinHandle}, u32};
 
 use crate::wayland::shm;
 
@@ -23,14 +23,14 @@ pub struct WlClient {
 }
 
 impl WlClient {
-    pub fn new() -> Result<Self, Box<dyn Error>> {
+    pub fn run() -> Result<Arc<Self>, Box<dyn Error>> {
         let sock = UnixStream::connect(format!(
             "{}/{}",
             var("XDG_RUNTIME_DIR")?,
             var("WAYLAND_DISPLAY")?
         ))?;
 
-        let mut wl_client = WlClient {
+        let mut wl_client = Arc::new(WlClient {
             socket:             Mutex::new(sock),
             current_id:         AtomicU32::from(1),
             registry_id:        AtomicU32::from(0),
@@ -42,21 +42,23 @@ impl WlClient {
             xdg_wm_base_id:     AtomicU32::from(0),
             layer_shell_id:     AtomicU32::from(0),
             layer_surface_id:   AtomicU32::from(0),
-        };
+        });
 
-        wl_client.wl_display_get_registry()?;
+        let mut wl_client2 = wl_client.clone();
 
-        thread::spawn(move || {
-        }).join();
+        wl_client.wl_display_get_registry();
+        let readloop = thread::spawn(move || {
+            loop {
+                wl_client2.read_event();
+            }
+        });
 
-        loop {
-            wl_client.read_event();
-        }
+        readloop.join();
 
         Ok(wl_client)
     }
 
-    pub fn read_event(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn read_event(&self) -> Result<(), Box<dyn Error>> {
         // TODO: Don't realloc header and event
 
         let mut header = vec![0u8; 8];
@@ -73,6 +75,12 @@ impl WlClient {
         socket.read_exact(&mut event)?;
         drop(socket);
 
+        println!(
+            "Received event:\n\tObject: {}\n\tOpcode: {}\n\tSize: {}",
+            header.object,
+            header.opcode,
+            header.size
+        );
         if header.object == self.registry_id.load(Ordering::Relaxed) && header.opcode == 0 { // wl_registry::global
             self.wl_registry_global(&event)?;
         }
@@ -94,15 +102,8 @@ impl WlClient {
         else if header.object == self.surface_id.load(Ordering::Relaxed) && header.opcode == 3 { // wl_surface::preferred_buffer_transform
             println!("Preferred buffer transform: {}", i32::from_ne_bytes(event[0..4].try_into().unwrap()));
         }
-        else {
-            println!(
-                "Received event:\n\tObject: {}\n\tOpcode: {}\n\tSize: {}",
-                header.object,
-                header.opcode,
-                header.size
-            );
-        }
 
         Ok(())
     }
 }
+

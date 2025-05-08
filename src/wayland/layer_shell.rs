@@ -6,7 +6,7 @@ const OVERLAY: u32 = 3;
 const EXCLUSIVE: u32 = 0; // exclusize keyboard focus
 
 impl WlClient {
-    pub fn layer_shell_get_layer_surface(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn layer_shell_get_layer_surface(&self) -> Result<(), Box<dyn Error>> {
         // TODO: Make sure layer_surface_id isn't already set
         let object: u32 = self.layer_shell_id.load(Ordering::Relaxed);
         if object == 0 {
@@ -42,7 +42,7 @@ impl WlClient {
         Ok(())
     }
 
-    pub fn layer_surface_configure(&mut self, event: &Vec<u8>) -> Result<(), Box<dyn Error>> {
+    pub fn layer_surface_configure(&self, event: &Vec<u8>) -> Result<(), Box<dyn Error>> {
         let mut offset: usize = 0;
         let serial = event.read_u32(&mut offset);
         let width  = event.read_u32(&mut offset);
@@ -75,7 +75,7 @@ impl WlClient {
         Ok(())
     }
 
-    pub fn layer_surface_set_size(&mut self, width: u32, height: u32) -> Result<(), Box<dyn Error>> {
+    pub fn layer_surface_set_size(&self, width: u32, height: u32) -> Result<(), Box<dyn Error>> {
         let object: u32 = self.layer_surface_id.load(Ordering::Relaxed);
         if object == 0 {
             return Err(UnsetErr("layer_surface_id".to_string()).into());
@@ -98,7 +98,7 @@ impl WlClient {
         Ok(())
     }
 
-    pub fn layer_surface_set_keyboard_interactivity(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn layer_surface_set_keyboard_interactivity(&self) -> Result<(), Box<dyn Error>> {
         let object: u32 = self.layer_surface_id.load(Ordering::Relaxed);
         if object == 0 {
             return Err(UnsetErr("layer_surface_id".to_string()).into());

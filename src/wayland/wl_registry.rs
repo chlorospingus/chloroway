@@ -2,7 +2,7 @@ use crate::wayland::{surface::UnsetErr, vec_utils::WlMessage, wl_client::WlClien
 use std::{error::Error, io::Write, sync::atomic::{AtomicU32, Ordering}};
 
 impl WlClient {
-    fn init_toplevel(&mut self) -> Result<(), Box<dyn Error>> {
+    fn init_toplevel(&self) -> Result<(), Box<dyn Error>> {
         if self.shm_id.load(Ordering::Relaxed) == 0 {
             return Err(Box::new(UnsetErr("shm_id".to_string())));
         }
@@ -29,7 +29,7 @@ impl WlClient {
         Ok(())
     }
 
-    pub fn wl_display_get_registry(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn wl_display_get_registry(&self) -> Result<(), Box<dyn Error>> {
         const OBJECT: u32 = 1;
         const OPCODE: u16 = 1;
         const MSG_SIZE: u16 = 12;
@@ -50,7 +50,7 @@ impl WlClient {
         Ok(())
     }
 
-    pub fn wl_registry_global(&mut self, event: &Vec<u8>) -> Result<(), Box<dyn Error>> {
+    pub fn wl_registry_global(&self, event: &Vec<u8>) -> Result<(), Box<dyn Error>> {
         let mut offset: usize = 0;
 
         let name        = event.read_u32(&mut offset);
@@ -118,7 +118,7 @@ impl WlClient {
     }
 
     pub fn wl_registry_bind(
-        &mut self,
+        &self,
         name: &u32,
         interface: &String,
         version: &u32,

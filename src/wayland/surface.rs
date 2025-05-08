@@ -15,7 +15,7 @@ impl fmt::Display for UnsetErr {
 }
 
 impl WlClient {
-    pub fn wl_compositor_create_surface(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn wl_compositor_create_surface(&self) -> Result<(), Box<dyn Error>> {
         let object = self.compositor_id.load(Ordering::Relaxed);
         if object == 0 {
             return Err(UnsetErr("compositor_id".to_string()).into());
@@ -40,7 +40,7 @@ impl WlClient {
         Ok(())
     }
 
-    pub fn wl_surface_attach(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn wl_surface_attach(&self) -> Result<(), Box<dyn Error>> {
         let object = self.surface_id.load(Ordering::Relaxed);
         if object == 0 {
             return Err(UnsetErr("surface_id".to_string()).into());
@@ -69,7 +69,7 @@ impl WlClient {
         Ok(())
     }
 
-    pub fn wl_surface_commit(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn wl_surface_commit(&self) -> Result<(), Box<dyn Error>> {
         let object = self.surface_id.load(Ordering::Relaxed);
         if object == 0 {
             return Err(UnsetErr("surface_id".to_string()).into());
@@ -89,7 +89,7 @@ impl WlClient {
         Ok(())
     }
 
-    pub fn xdg_wm_base_pong(&mut self, event: &Vec<u8>) -> Result<(), Box<dyn Error>> {
+    pub fn xdg_wm_base_pong(&self, event: &Vec<u8>) -> Result<(), Box<dyn Error>> {
         let object = self.xdg_wm_base_id.load(Ordering::Relaxed);
         if object == 0 {
             return Err(UnsetErr("xdg_wm_base_id".to_string()).into());
