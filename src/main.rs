@@ -1,5 +1,5 @@
 #![feature(unix_socket_ancillary_data)]
-use std::error::Error;
+use std::{error::Error, thread, time::Duration};
 
 mod wayland;
 use wayland::wl_client::WlClient;

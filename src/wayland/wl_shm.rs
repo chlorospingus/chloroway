@@ -5,14 +5,16 @@ const STRIDE: usize = 4;
 
 impl WlClient {
     pub fn wl_shm_format(event: &Vec<u8>) {
-        let mut offset = 0;
-        println!("Received pixel format: {:x}", event.read_u32(&mut offset));
+        // let mut offset = 0;
+        // println!("Received pixel format: {:x}", event.read_u32(&mut offset));
     }
 
     pub fn wl_shm_create_pool(&self, width: usize, height: usize) -> Result<(), Box<dyn Error>> {
         let mut shm_pool = self.shm_pool.lock().unwrap();
         let current_id = self.current_id.fetch_add(1, Ordering::Relaxed) + 1;
         *shm_pool = Some(shm::ShmPool::new(width, height, current_id)?);
+        self.shmpool_id.store(current_id, Ordering::Relaxed);
+
         shm_pool.as_mut().unwrap().write(&vec![0xffff0000; width * height], 0);
         shm_pool.as_mut().unwrap().rectangle(50, 50, 50, 50, 0xff00ff00);
         shm_pool.as_mut().unwrap().circle(300, 300, 200, 0xff0000ff);
@@ -24,7 +26,7 @@ impl WlClient {
         }
         const OPCODE: u16 = 0;
         const REQ_SIZE: u16 = 16;
-        let id          = shm_pool.as_ref().unwrap().id;
+        let id          = self.shmpool_id.load(Ordering::Relaxed);
         let fds         = [shm_pool.as_ref().unwrap().fd];
         let shm_size    = shm_pool.as_ref().unwrap().size;
 
@@ -61,7 +63,7 @@ impl WlClient {
         width:      u32,
         height:     u32
     ) -> Result<(), Box<dyn Error>> {
-        let object: u32 = self.shm_pool.lock().unwrap().as_ref().unwrap().id;
+        let object: u32 = self.shmpool_id.load(Ordering::Relaxed);
         const REQ_SIZE: u16 = 32;
         const OPCODE: u16 = 0;
 

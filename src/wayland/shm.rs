@@ -1,9 +1,8 @@
-use libc::{c_void, ftruncate, mmap, munmap, shm_open, shm_unlink, MAP_FAILED, MAP_SHARED, O_CREAT, O_EXCL, O_RDWR, PROT_READ, PROT_WRITE};
+use libc::{c_void, ftruncate, mmap, munmap, shm_open, shm_unlink, MAP_FAILED, MAP_PRIVATE, MAP_SHARED, O_CREAT, O_EXCL, O_RDWR, PROT_READ, PROT_WRITE};
 
 #[derive(Clone)]
 pub struct ShmPool {
     pub fd:     i32,
-    pub id:     u32,
     pub addr:   *mut c_void,
     pub size:   usize,
     pub width:  usize,
@@ -38,11 +37,19 @@ impl ShmPool {
 
         Ok(ShmPool {
             fd,
-            id,
             addr,
             size,
             width,
         })
+    }
+
+    pub fn from_fd(fd: i32, size: usize) -> std::io::Result<ShmPool> {
+        let addr = unsafe { mmap(std::ptr::null_mut(), size, PROT_READ, MAP_PRIVATE, fd, 0) };
+        if addr == MAP_FAILED {
+            eprint!("mmap in ShmPool::from_fd() failed: ");
+            return Err(std::io::Error::last_os_error());
+        }
+        Ok(ShmPool {fd, addr, size, width: 0})
     }
 
     pub fn resize(&mut self, size: usize) -> std::io::Result<()> {

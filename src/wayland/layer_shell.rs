@@ -3,7 +3,7 @@ use crate::wayland::{surface::UnsetErr, vec_utils::WlMessage, wl_client::WlClien
 
 const NAMESPACE: &str = "chlorostart";
 const OVERLAY: u32 = 3;
-const EXCLUSIVE: u32 = 0; // exclusize keyboard focus
+const EXCLUSIVE: u32 = 1; // exclusize keyboard focus
 
 impl WlClient {
     pub fn layer_shell_get_layer_surface(&self) -> Result<(), Box<dyn Error>> {

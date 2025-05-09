@@ -15,6 +15,9 @@ impl WlClient {
         if self.layer_shell_id.load(Ordering::Relaxed) == 0 {
             return Err(UnsetErr("layer_shell_id".to_string()).into());
         }
+        if self.seat_id.load(Ordering::Relaxed) == 0 {
+            return Err(UnsetErr("seat_id".to_string()).into());
+        }
         println!("Initializing toplevel!");
         self.wl_compositor_create_surface()?;
         self.layer_shell_get_layer_surface()?;
@@ -57,60 +60,43 @@ impl WlClient {
         let interface   = event.read_string(&mut offset);
         let version     = event.read_u32(&mut offset);
 
-        println!(
-            "Received global:\n\tName: {}\n\tInterface: {}\n\tVersion: {}",
-            name,
-            interface,
-            version,
-        );
+        // println!(
+        //     "Received global:\n\tName: {}\n\tInterface: {}\n\tVersion: {}",
+        //     name,
+        //     interface,
+        //     version,
+        // );
 
         // TODO: Collapse these into one line (probably using a macro)
 
         if interface == "wl_shm" {
             let current_id = self.current_id.fetch_add(1, Ordering::Relaxed) + 1;
-            self.wl_registry_bind(
-                &name,
-                &interface,
-                &version,
-                &current_id
-            )?;
+            self.wl_registry_bind(&name, &interface, &version, &current_id)?;
             self.shm_id.store(current_id, Ordering::Relaxed);
             self.init_toplevel().unwrap_or_else(|err| {eprintln!("{}", err)});
         }
-
-        if interface == "wl_compositor" {
+        else if interface == "wl_compositor" {
             let current_id = self.current_id.fetch_add(1, Ordering::Relaxed) + 1;
-            self.wl_registry_bind(
-                &name,
-                &interface,
-                &version,
-                &current_id
-            )?;
+            self.wl_registry_bind(&name, &interface, &version, &current_id)?;
             self.compositor_id.store(current_id, Ordering::Relaxed);
             self.init_toplevel().unwrap_or_else(|err| {eprintln!("{}", err)});
         }
-
-        if interface == "xdg_wm_base" {
+        else if interface == "xdg_wm_base" {
             let current_id = self.current_id.fetch_add(1, Ordering::Relaxed) + 1;
-            self.wl_registry_bind(
-                &name,
-                &interface,
-                &version,
-                &current_id
-            )?;
+            self.wl_registry_bind(&name, &interface, &version, &current_id)?;
             self.xdg_wm_base_id.store(current_id, Ordering::Relaxed);
             self.init_toplevel().unwrap_or_else(|err| {eprintln!("{}", err)});
         }
-
-        if interface == "zwlr_layer_shell_v1" {
+        else if interface == "zwlr_layer_shell_v1" {
             let current_id = self.current_id.fetch_add(1, Ordering::Relaxed) + 1;
-            self.wl_registry_bind(
-                &name,
-                &interface,
-                &version,
-                &current_id
-            )?;
+            self.wl_registry_bind(&name, &interface, &version, &current_id)?;
             self.layer_shell_id.store(current_id, Ordering::Relaxed);
+            self.init_toplevel().unwrap_or_else(|err| {eprintln!("{}", err)});
+        }
+        else if interface == "wl_seat" {
+            let current_id = self.current_id.fetch_add(1, Ordering::Relaxed) + 1;
+            self.wl_registry_bind(&name, &interface, &version, &current_id)?;
+            self.seat_id.store(current_id, Ordering::Relaxed);
             self.init_toplevel().unwrap_or_else(|err| {eprintln!("{}", err)});
         }
 
