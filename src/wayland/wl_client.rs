@@ -1,6 +1,4 @@
-#![feature(unix_socket_ancillary_data)]
-
-use std::{env::var, error::Error, fmt::Debug, io::{IoSliceMut, Read}, os::unix::net::{AncillaryData, SocketAncillary, UnixStream}, sync::{atomic::{AtomicU32, Ordering}, Arc, Mutex}, thread::{self, JoinHandle}, u32};
+use std::{collections::HashMap, env::var, error::Error, fmt::Debug, io::IoSliceMut, os::unix::net::{AncillaryData, SocketAncillary, UnixStream}, sync::{atomic::{AtomicU32, Ordering}, Arc, Mutex}, thread::{self}, u32};
 
 use crate::wayland::shm;
 
@@ -25,7 +23,8 @@ pub struct WlClient {
     pub layer_surface_id:   AtomicU32,
     pub seat_id:            AtomicU32,
     pub keyboard_id:        AtomicU32,
-    pub keymap:             Mutex<Option<shm::ShmPool>>,
+    pub keymap_fd:          Mutex<Option<shm::ShmPool>>,
+    pub keymap:             Mutex<Option<HashMap<u32, String>>>
 }
 
 impl WlClient {
@@ -52,6 +51,7 @@ impl WlClient {
             seat_id:            AtomicU32::from(0),
             keyboard_id:        AtomicU32::from(0),
             keymap:             Mutex::new(None),
+            keymap_fd:          Mutex::new(None),
         });
 
         let mut wl_client2 = wl_client.clone();

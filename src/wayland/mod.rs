@@ -7,3 +7,4 @@ pub mod vec_utils;
 pub mod shm;
 pub mod wl_registry;
 pub mod seat;
+pub mod xkb;

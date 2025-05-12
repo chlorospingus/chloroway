@@ -52,6 +52,18 @@ impl ShmPool {
         Ok(ShmPool {fd, addr, size, width: 0})
     }
 
+    pub fn read_string(&self, offset: usize) -> std::io::Result<String> {
+        let mut res: Vec<u8> = Vec::new();
+        for i in offset..self.size {
+            let byte = unsafe {*(self.addr.offset(i as isize) as *const u8)};
+            if byte == 0 {
+                break;
+            }
+            res.push(byte);
+        };
+        Ok(String::from_utf8(res).unwrap())
+    }
+
     pub fn resize(&mut self, size: usize) -> std::io::Result<()> {
         if unsafe { ftruncate(self.fd, size as i64) } == -1 {
             return Err(std::io::Error::last_os_error())

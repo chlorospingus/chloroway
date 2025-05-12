@@ -4,6 +4,8 @@ use std::{error::Error, io::{IoSliceMut, Write}, os::unix::net::{AncillaryData, 
 
 use crate::wayland::{shm, vec_utils::WlMessage, wl_client::WlClient, surface::UnsetErr};
 
+use super::xkb;
+
 
 impl WlClient {
     pub fn wl_seat_capabilities(&self, event: &Vec<u8>) -> Result<(), Box<dyn Error>> {
@@ -56,23 +58,36 @@ impl WlClient {
         let format = event.read_u32(&mut offset);
         let size = event.read_u32(&mut offset);
 
-        *self.keymap.lock().unwrap() = Some(shm::ShmPool::from_fd(fd, size as usize)?);
+        let mut keymap_fd = self.keymap_fd.lock().unwrap();
+        *keymap_fd = Some(shm::ShmPool::from_fd(fd, size as usize)?);
+        let mut keymap = self.keymap.lock().unwrap();
+        *keymap = xkb::gen_id_keysym_mapping(keymap_fd.as_ref().unwrap());
 
         Ok(())
     }
 
-    pub fn wl_keyboard_key(&self, event: &Vec<u8>) {
+    pub fn wl_keyboard_key(&self, event: &Vec<u8>) -> Result<(), Box<dyn Error>> {
         let mut offset: usize = 0;
         let serial = event.read_u32(&mut offset);
         let time = event.read_u32(&mut offset);
         let key = event.read_u32(&mut offset);
         let state = event.read_u32(&mut offset);
-        println!(
-            "Received key:\n\tSerial: {}\n\tTime: {}\n\tKey: {}\n\tState: {}",
-            serial,
-            time,
-            key,
-            state
-        )
+
+        if let Some(keymap) = &*self.keymap.lock().unwrap() {
+            if let Some(keysym) = keymap.get(&(key + 8)) {
+                println!("Received key:\n\t{} {}", keysym, if state == 0 {'↑'} else {'↓'});
+            } else {
+                eprintln!("Unrecognized key!");
+            }
+        } else {
+            println!(
+                "Received key:\n\tserial: {}\n\ttime: {}\n\tkey: {}\n\tstate: {}",
+                serial,
+                time,
+                key,
+                state
+            );
+        }
+        Ok(())
     }
 }
