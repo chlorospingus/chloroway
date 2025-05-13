@@ -9,7 +9,7 @@ pub struct ShmPool {
 }
 
 impl ShmPool {
-    pub fn new(width: usize, height: usize, id: u32) -> std::io::Result<ShmPool> {
+    pub fn new(width: usize, height: usize) -> std::io::Result<ShmPool> {
         let size = width * height * 4;
 
         let shm_path: *const i8 = b"/chlorostart\0".as_ptr() as *const i8;

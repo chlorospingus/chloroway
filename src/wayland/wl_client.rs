@@ -1,6 +1,12 @@
-use std::{collections::HashMap, env::var, error::Error, fmt::Debug, io::IoSliceMut, os::unix::net::{AncillaryData, SocketAncillary, UnixStream}, sync::{atomic::{AtomicU32, Ordering}, Arc, Mutex}, thread::{self}, u32};
+use std::{collections::HashMap, env::var, error::Error, fmt::Debug, io::{IoSliceMut, Write}, os::unix::net::{AncillaryData, SocketAncillary, UnixStream}, sync::{atomic::{AtomicU32, Ordering}, mpsc, Arc, Mutex}, thread::{self}, time::Duration, u32};
 
-use crate::wayland::shm;
+use crate::wayland::{shm, vec_utils::WlMessage};
+
+#[derive(PartialEq)]
+pub enum ThreadMessage {
+    Exit,
+}
+use ThreadMessage::*;
 
 struct WlHeader {
     object: u32,
@@ -10,11 +16,12 @@ struct WlHeader {
 
 pub struct WlClient {
     pub socket:             Mutex<UnixStream>,
+    pub sender:             mpsc::Sender<ThreadMessage>,
     pub current_id:         AtomicU32,
     pub registry_id:        AtomicU32,
     pub shm_id:             AtomicU32,
     pub shmpool_id:         AtomicU32,
-    pub shm_pool:           Mutex<Option<shm::ShmPool>>,
+    pub shm_pool:           Mutex<shm::ShmPool>,
     pub buffer_id:          AtomicU32,
     pub compositor_id:      AtomicU32,
     pub surface_id:         AtomicU32,
@@ -34,14 +41,18 @@ impl WlClient {
             var("XDG_RUNTIME_DIR")?,
             var("WAYLAND_DISPLAY")?
         ))?;
+        sock.set_nonblocking(true)?;
 
-        let mut wl_client = Arc::new(WlClient {
+        let (sender, receiver) = mpsc::channel::<ThreadMessage>();
+
+        let mut arc_wl_client = Arc::new(WlClient {
             socket:             Mutex::new(sock),
+            sender,
             current_id:         AtomicU32::from(1),
             registry_id:        AtomicU32::from(0),
             shm_id:             AtomicU32::from(0),
             shmpool_id:         AtomicU32::from(0),
-            shm_pool:           Mutex::new(None),
+            shm_pool:           Mutex::new(shm::ShmPool::new(800, 800)?),
             buffer_id:          AtomicU32::from(0),
             compositor_id:      AtomicU32::from(0),
             surface_id:         AtomicU32::from(0),
@@ -52,23 +63,34 @@ impl WlClient {
             keyboard_id:        AtomicU32::from(0),
             keymap:             Mutex::new(None),
             keymap_fd:          Mutex::new(None),
-        });
+        }); 
+        arc_wl_client.wl_display_get_registry();
 
-        let mut wl_client2 = wl_client.clone();
-
-        wl_client.wl_display_get_registry();
+        let wl_client = arc_wl_client.clone();
         let readloop = thread::spawn(move || {
             loop {
-                wl_client2.read_event();
+                wl_client.read_event();
             }
         });
 
-        readloop.join();
+        let wl_client = arc_wl_client.clone();
+        let recvloop = thread::spawn(move || {
+            'recv: loop {
+                match receiver.recv().unwrap() {
+                    Exit => {
+                        thread::sleep(Duration::from_secs(1));
+                        break 'recv;
+                    }
+                }
+            }
+        });
+
+        recvloop.join();
 
         Ok(())
     }
 
-    pub fn read_event(&self) -> Result<(), Box<dyn Error>> {
+    pub fn read_event(self: &Arc<Self>) -> Result<(), Box<dyn Error>> {
         // TODO: Don't realloc header and event
 
         // FIXME: Using fd like this is unreliable because fd could be before or after
@@ -76,7 +98,7 @@ impl WlClient {
         let mut fd = 0;
 
         let mut header = vec![0u8; 8];
-        let mut socket = self.socket.lock().unwrap();
+        let socket = self.socket.lock().unwrap();
         let mut ancillary_buf = [0; 128];
         let mut ancillary = SocketAncillary::new(&mut ancillary_buf);
 
@@ -116,7 +138,7 @@ impl WlClient {
         if header.object == self.registry_id.load(Ordering::Relaxed) && header.opcode == 0 { // wl_registry::global
             self.wl_registry_global(&event)?;
         }
-        else if header.object == self.registry_id.load(Ordering::Relaxed) && header.opcode == 0 { // wl_display::error
+        else if header.object == 1 && header.opcode == 0 { // wl_display::error
             WlClient::wl_display_error(&event);
         }
         else if header.object == self.shm_id.load(Ordering::Relaxed) && header.opcode == 0 { // wl_shm::format
@@ -144,7 +166,10 @@ impl WlClient {
             self.wl_keyboard_keymap(&event, fd);
         }
         else if header.object == self.keyboard_id.load(Ordering::Relaxed) && header.opcode == 3 { // wl_keyboard::key
-            self.wl_keyboard_key(&event);
+            let wl_client = self.clone();
+            thread::spawn(move || {
+                wl_client.wl_keyboard_key(&event);
+            });
         }
         else {
             println!(
@@ -156,6 +181,32 @@ impl WlClient {
         }
 
         Ok(())
+    }
+
+    pub fn destroy_object(&self, id: &AtomicU32, opcode: u16) {
+        let object = id.load(Ordering::Relaxed);
+        if object == 0 {
+            return;
+        }
+        const REQ_SIZE: u16 = 8;
+
+        let mut request = vec![0; REQ_SIZE as usize];
+        let mut offset = 0;
+
+        request.write_u32(&object,   &mut offset);
+        request.write_u16(&opcode,   &mut offset);
+        request.write_u16(&REQ_SIZE, &mut offset);
+
+        self.socket.lock().unwrap().write(&request);
+        self.shmpool_id.store(0, Ordering::Relaxed);
+    }
+
+    pub fn exit(&self) {
+        println!("Exiting!");
+        self.destroy_object(&self.buffer_id, 0);
+        self.destroy_object(&self.surface_id, 0);
+        self.destroy_object(&self.layer_surface_id, 7);
+        self.sender.send(ThreadMessage::Exit);
     }
 }
 

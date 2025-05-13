@@ -75,6 +75,9 @@ impl WlClient {
 
         if let Some(keymap) = &*self.keymap.lock().unwrap() {
             if let Some(keysym) = keymap.get(&(key + 8)) {
+                if keysym == "ESC" && state == 0 {
+                    self.exit();
+                }
                 println!("Received key:\n\t{} {}", keysym, if state == 0 {'↑'} else {'↓'});
             } else {
                 eprintln!("Unrecognized key!");
