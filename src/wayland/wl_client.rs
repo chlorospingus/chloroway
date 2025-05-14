@@ -1,10 +1,9 @@
-use std::{collections::HashMap, env::var, error::Error, fmt::Debug, io::{IoSliceMut, Write}, os::unix::net::{AncillaryData, SocketAncillary, UnixStream}, sync::{atomic::{AtomicU32, Ordering}, mpsc, Arc, Mutex}, thread::{self}, time::Duration, u32};
+use std::{collections::HashMap, env::var, error::Error, fmt::Debug, io::{IoSliceMut, Write}, os::unix::net::{AncillaryData, SocketAncillary, UnixStream}, sync::{atomic::{AtomicU32, AtomicBool, Ordering}, mpsc, Arc, Mutex}, thread::{self}, time::Duration, u32};
 
 use crate::wayland::{shm, vec_utils::WlMessage};
 
 #[derive(PartialEq)]
 pub enum ThreadMessage {
-    Exit,
 }
 use ThreadMessage::*;
 
@@ -17,6 +16,7 @@ struct WlHeader {
 pub struct WlClient {
     pub socket:             Mutex<UnixStream>,
     pub sender:             mpsc::Sender<ThreadMessage>,
+    pub running:            AtomicBool,
     pub current_id:         AtomicU32,
     pub registry_id:        AtomicU32,
     pub shm_id:             AtomicU32,
@@ -48,6 +48,7 @@ impl WlClient {
         let mut arc_wl_client = Arc::new(WlClient {
             socket:             Mutex::new(sock),
             sender,
+            running:            AtomicBool::from(false),
             current_id:         AtomicU32::from(1),
             registry_id:        AtomicU32::from(0),
             shm_id:             AtomicU32::from(0),
@@ -65,27 +66,25 @@ impl WlClient {
             keymap_fd:          Mutex::new(None),
         }); 
         arc_wl_client.wl_display_get_registry();
+        arc_wl_client.running.store(true, Ordering::Relaxed);
 
         let wl_client = arc_wl_client.clone();
-        let readloop = thread::spawn(move || {
-            loop {
+        let readloop = thread::Builder::new().name("readloop".to_string()).spawn(move || {
+            while wl_client.running.load(Ordering::Relaxed) {
                 wl_client.read_event();
             }
-        });
+        })?;
 
-        let wl_client = arc_wl_client.clone();
-        let recvloop = thread::spawn(move || {
-            'recv: loop {
-                match receiver.recv().unwrap() {
-                    Exit => {
-                        thread::sleep(Duration::from_secs(1));
-                        break 'recv;
-                    }
-                }
-            }
-        });
-
-        recvloop.join();
+        // let wl_client = arc_wl_client.clone();
+        // let recvloop = thread::Builder::new().name("recvloop".to_string()).spawn(move || {
+        //     while wl_client.running.load(Ordering::Relaxed) {
+        //         match receiver.recv().unwrap() {
+        //         }
+        //     }
+        // })?;
+        //
+        // recvloop.join();
+        readloop.join();
 
         Ok(())
     }
@@ -140,6 +139,7 @@ impl WlClient {
         }
         else if header.object == 1 && header.opcode == 0 { // wl_display::error
             WlClient::wl_display_error(&event);
+            dbg!(&self);
         }
         else if header.object == self.shm_id.load(Ordering::Relaxed) && header.opcode == 0 { // wl_shm::format
             WlClient::wl_shm_format(&event);
@@ -203,10 +203,10 @@ impl WlClient {
 
     pub fn exit(&self) {
         println!("Exiting!");
-        self.destroy_object(&self.buffer_id, 0);
-        self.destroy_object(&self.surface_id, 0);
         self.destroy_object(&self.layer_surface_id, 7);
-        self.sender.send(ThreadMessage::Exit);
+        self.destroy_object(&self.buffer_id, 0);
+        self.keymap_fd.lock().unwrap().take();
+        self.running.store(false, Ordering::Relaxed);
     }
 }
 
@@ -216,6 +216,7 @@ impl Debug for WlClient {
     current_id: {},
     registry_id: {},
     shm_id: {},
+    shmpool_id: {},
     buffer_id: {},
     compositor_id: {},
     surface_id: {},
@@ -225,17 +226,18 @@ impl Debug for WlClient {
     seat_id: {},
     keyboard_id: {},
 }}",
-            self.current_id.load(Ordering::Relaxed),
-            self.registry_id.load(Ordering::Relaxed),
-            self.shm_id.load(Ordering::Relaxed),
-            self.buffer_id.load(Ordering::Relaxed),
-            self.compositor_id.load(Ordering::Relaxed),
-            self.surface_id.load(Ordering::Relaxed),
-            self.xdg_wm_base_id.load(Ordering::Relaxed),
-            self.layer_shell_id.load(Ordering::Relaxed),
-            self.layer_surface_id.load(Ordering::Relaxed),
-            self.seat_id.load(Ordering::Relaxed),
-            self.keyboard_id.load(Ordering::Relaxed),
+    self.current_id.load(Ordering::Relaxed),
+    self.registry_id.load(Ordering::Relaxed),
+    self.shm_id.load(Ordering::Relaxed),
+    self.shmpool_id.load(Ordering::Relaxed),
+    self.buffer_id.load(Ordering::Relaxed),
+    self.compositor_id.load(Ordering::Relaxed),
+    self.surface_id.load(Ordering::Relaxed),
+    self.xdg_wm_base_id.load(Ordering::Relaxed),
+    self.layer_shell_id.load(Ordering::Relaxed),
+    self.layer_surface_id.load(Ordering::Relaxed),
+    self.seat_id.load(Ordering::Relaxed),
+    self.keyboard_id.load(Ordering::Relaxed),
         )
     }
 }

@@ -103,6 +103,7 @@ impl ShmPool {
 
 impl Drop for ShmPool {
     fn drop(&mut self) {
+        println!("Dropping ShmPool!");
         unsafe { munmap(self.addr, self.size); }
     }
 }
