@@ -1,5 +1,7 @@
 use std::{error::Error, io::Write, os::unix::net::SocketAncillary, sync::atomic::Ordering, u8};
+use crate::graphics::drawable::Drawable;
 use crate::wayland::{shm, surface::UnsetErr, vec_utils::WlMessage, wl_client::WlClient};
+use crate::graphics::{rectangle::Rectangle, circle::Circle};
 
 const STRIDE: usize = 4;
 
@@ -15,9 +17,10 @@ impl WlClient {
         self.shmpool_id.store(current_id, Ordering::Relaxed);
 
         shm_pool.write(&vec![0xffff0000; width * height], 0);
-        shm_pool.rectangle(50, 50, 50, 50, 0xff00ff00);
-        shm_pool.circle(300, 300, 200, 0xff0000ff);
-        shm_pool.rounded_rectangle(450, 400, 60, 40, 16, 0xffffff00);
+        let rect = Rectangle::new(100, 100, 200, 50, 25, 0xffffff);
+        rect.draw(&mut shm_pool);
+        let circle = Circle::new(250, 150, 20, 0xff00ffff);
+        circle.draw(&mut shm_pool);
 
         let object = self.shm_id.load(Ordering::Relaxed);
         if object == 0 {
