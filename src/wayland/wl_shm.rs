@@ -16,11 +16,11 @@ impl WlClient {
         let current_id = self.current_id.fetch_add(1, Ordering::Relaxed) + 1;
         self.shmpool_id.store(current_id, Ordering::Relaxed);
 
-        shm_pool.write(&vec![0xffff0000; width * height], 0);
-        let rect = Rectangle::new(100, 100, 200, 50, 25, 0xffffff);
+        // shm_pool.write(&vec![0xffff0000; width * height], 0);
+        let rect = Rectangle::new(100, 100, 200, 50, 20, 0xffffff);
         rect.draw(&mut shm_pool);
-        let circle = Circle::new(250, 150, 20, 0xff00ffff);
-        circle.draw(&mut shm_pool);
+        // let circle = Circle::new(250, 150, 20, 0xff00ffff);
+        // circle.draw(&mut shm_pool);
 
         let object = self.shm_id.load(Ordering::Relaxed);
         if object == 0 {

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env::var, error::Error, fmt::Debug, io::{IoSliceMut, Write}, os::unix::net::{AncillaryData, SocketAncillary, UnixStream}, sync::{atomic::{AtomicU32, AtomicBool, Ordering}, mpsc, Arc, Mutex}, thread::{self}, time::Duration, u32};
+use std::{collections::HashMap, env::var, error::Error, fmt::Debug, io::{IoSliceMut, Write}, os::unix::net::{AncillaryData, SocketAncillary, UnixStream}, sync::{atomic::{AtomicBool, AtomicU32, Ordering}, mpsc, Arc, Mutex, RwLock}, thread::{self}, time::Duration, u32};
 
 use crate::wayland::{shm, vec_utils::WlMessage};
 
@@ -31,7 +31,7 @@ pub struct WlClient {
     pub seat_id:            AtomicU32,
     pub keyboard_id:        AtomicU32,
     pub keymap_fd:          Mutex<Option<shm::ShmPool>>,
-    pub keymap:             Mutex<Option<HashMap<u32, String>>>
+    pub keymap:             RwLock<Option<HashMap<u32, Vec<String>>>>
 }
 
 impl WlClient {
@@ -62,7 +62,7 @@ impl WlClient {
             layer_surface_id:   AtomicU32::from(0),
             seat_id:            AtomicU32::from(0),
             keyboard_id:        AtomicU32::from(0),
-            keymap:             Mutex::new(None),
+            keymap:             RwLock::new(None),
             keymap_fd:          Mutex::new(None),
         }); 
         arc_wl_client.wl_display_get_registry();

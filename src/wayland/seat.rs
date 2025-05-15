@@ -60,7 +60,7 @@ impl WlClient {
 
         let mut keymap_fd = self.keymap_fd.lock().unwrap();
         *keymap_fd = Some(shm::ShmPool::from_fd(fd, size as usize)?);
-        let mut keymap = self.keymap.lock().unwrap();
+        let mut keymap = self.keymap.write().unwrap();
         *keymap = xkb::gen_id_keysym_mapping(keymap_fd.as_ref().unwrap());
 
         Ok(())
@@ -73,12 +73,12 @@ impl WlClient {
         let key = event.read_u32(&mut offset);
         let state = event.read_u32(&mut offset);
 
-        if let Some(keymap) = &*self.keymap.lock().unwrap() {
+        if let Some(keymap) = &*self.keymap.read().unwrap() {
             if let Some(keysym) = keymap.get(&(key + 8)) {
-                if keysym == "ESC" && state == 0 {
+                if keysym[0] == "Escape" && state == 0 {
                     self.exit();
                 }
-                println!("Received key:\n\t{} {}", keysym, if state == 0 {'↑'} else {'↓'});
+                println!("Received key:\n\t{} {}", keysym[0], if state == 0 {'↑'} else {'↓'});
             } else {
                 eprintln!("Unrecognized key!");
             }
