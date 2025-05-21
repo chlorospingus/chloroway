@@ -1,8 +1,8 @@
-use crate::wayland::{surface::UnsetErr, vec_utils::WlMessage, wl_client::WlClient};
-use std::{error::Error, io::Write, sync::atomic::{AtomicU32, Ordering}};
+use crate::wayland::{surface::UnsetErr, vec_utils::WlMessage, wl_client::WlClient, wl_shm::wl_buffer};
+use std::{error::Error, io::Write, sync::{atomic::{AtomicU32, Ordering}, Arc}};
 
 impl WlClient {
-    fn init_toplevel(&self) -> Result<(), Box<dyn Error>> {
+    fn init_toplevel(&self) -> Result<(), Box<dyn Error + '_>> {
         if self.shm_id.load(Ordering::Relaxed) == 0 {
             return Err(Box::new(UnsetErr("shm_id".to_string())));
         }
@@ -26,8 +26,25 @@ impl WlClient {
         self.layer_surface_set_keyboard_interactivity()?;
         self.wl_surface_commit()?;
 
-        self.wl_shm_create_pool(800, 800)?;
-        self.wl_shm_pool_create_buffer(0, 800, 800)?;
+        self.wl_shm_create_pool()?;
+
+        let current_id = self.current_id.fetch_add(2, Ordering::Relaxed);
+        let mut buffer1 = self.buffer1.lock().unwrap();
+        let mut buffer2 = self.buffer2.lock().unwrap();
+        *buffer1 = Some(wl_buffer {
+            id:     current_id + 1,
+            offset: 0,
+            width:  800,
+            height: 800
+        });
+        *buffer2 = Some(wl_buffer {
+            id:     current_id + 2,
+            offset: 800 * 800, // pixel offset
+            width:  800,
+            height: 800
+        });
+        self.wl_shm_pool_create_buffer(buffer1.as_ref().unwrap())?;
+        self.wl_shm_pool_create_buffer(buffer2.as_ref().unwrap())?;
 
         Ok(())
     }

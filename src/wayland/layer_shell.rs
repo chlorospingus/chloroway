@@ -1,4 +1,4 @@
-use std::{error::Error, io::Write, sync::atomic::Ordering};
+use std::{error::Error, io::Write, sync::atomic::Ordering, thread, time::Duration};
 use crate::wayland::{surface::UnsetErr, vec_utils::WlMessage, wl_client::WlClient};
 
 const NAMESPACE: &str = "chlorostart";
@@ -42,11 +42,17 @@ impl WlClient {
         Ok(())
     }
 
-    pub fn layer_surface_configure(&self, event: &Vec<u8>) -> Result<(), Box<dyn Error>> {
+    pub fn layer_surface_configure(&self, event: &Vec<u8>) -> Result<(), Box<dyn Error + '_>> {
         let mut offset: usize = 0;
         let serial = event.read_u32(&mut offset);
         let width  = event.read_u32(&mut offset);
         let height = event.read_u32(&mut offset);
+
+        println!(
+            "Configure layer surface:\n\twidth: {}\n\theight: {}",
+            width,
+            height
+        );
 
         // TODO: Resize based on configure
 
@@ -68,9 +74,7 @@ impl WlClient {
         request.write_u32(&serial, &mut offset);
 
         self.socket.lock().unwrap().write(&request)?;
-
-        self.wl_surface_attach()?;
-        self.wl_surface_commit()?;
+        self.wl_surface_frame()?;
 
         Ok(())
     }

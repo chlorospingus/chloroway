@@ -1,10 +1,12 @@
-use crate::wayland::shm::ShmPool;
+use crate::wayland::{shm::ShmPool, wl_shm::wl_buffer};
 
 pub fn color_blend(col1: u32, col2: u32, diff: f64) -> u32 {
     // TODO: Account for alpha channel
+    let a1 = (col1 & 0xff000000) >> 24;
     let r1 = (col1 & 0x00ff0000) >> 16;
     let g1 = (col1 & 0x0000ff00) >> 8;
     let b1 = col1 & 0x000000ff;
+    let a2 = (col2 & 0xff000000) >> 24;
     let r2 = (col2 & 0x00ff0000) >> 16;
     let g2 = (col2 & 0x0000ff00) >> 8;
     let b2 = col2 & 0x000000ff;
@@ -26,6 +28,7 @@ pub fn color_blend(col1: u32, col2: u32, diff: f64) -> u32 {
     return 0xff000000 + (r3 << 16) + (g3 << 8) + b3;
 }
 
-pub trait Drawable {
-    fn draw(&self, shm_pool: &mut ShmPool);
+pub trait Drawable : Send {
+    fn update(&mut self);
+    fn draw(&self, buffer: &wl_buffer, shm_pool: &mut ShmPool);
 }

@@ -1,9 +1,16 @@
+use std::sync::atomic::AtomicU32;
 use std::{error::Error, io::Write, os::unix::net::SocketAncillary, sync::atomic::Ordering, u8};
-use crate::graphics::drawable::Drawable;
-use crate::wayland::{shm, surface::UnsetErr, vec_utils::WlMessage, wl_client::WlClient};
-use crate::graphics::{rectangle::Rectangle, circle::Circle};
+use crate::wayland::{surface::UnsetErr, vec_utils::WlMessage, wl_client::WlClient};
 
 const STRIDE: usize = 4;
+
+#[derive(Debug)]
+pub struct wl_buffer {
+    pub id:         u32,
+    pub offset:     usize,
+    pub width:      usize,
+    pub height:     usize,
+}
 
 impl WlClient {
     pub fn wl_shm_format(event: &Vec<u8>) {
@@ -11,16 +18,10 @@ impl WlClient {
         // println!("Received pixel format: {:x}", event.read_u32(&mut offset));
     }
 
-    pub fn wl_shm_create_pool(&self, width: usize, height: usize) -> Result<(), Box<dyn Error>> {
-        let mut shm_pool = self.shm_pool.lock().unwrap();
+    pub fn wl_shm_create_pool(&self) -> Result<(), Box<dyn Error>> {
+        let shm_pool = self.shm_pool.lock().unwrap();
         let current_id = self.current_id.fetch_add(1, Ordering::Relaxed) + 1;
         self.shmpool_id.store(current_id, Ordering::Relaxed);
-
-        // shm_pool.write(&vec![0xffff0000; width * height], 0);
-        let rect = Rectangle::new(100, 100, 200, 50, 20, 0xffffff);
-        rect.draw(&mut shm_pool);
-        // let circle = Circle::new(250, 150, 20, 0xff00ffff);
-        // circle.draw(&mut shm_pool);
 
         let object = self.shm_id.load(Ordering::Relaxed);
         if object == 0 {
@@ -61,17 +62,17 @@ impl WlClient {
 
     pub fn wl_shm_pool_create_buffer(
         &self,
-        shm_offset: u32,
-        width:      u32,
-        height:     u32
+        buffer: &wl_buffer
     ) -> Result<(), Box<dyn Error>> {
         let object: u32 = self.shmpool_id.load(Ordering::Relaxed);
         const REQ_SIZE: u16 = 32;
         const OPCODE: u16 = 0;
 
+        let byte_offset: u32 = buffer.offset as u32 * 4;
+        let width: u32 = buffer.width as u32;
+        let height: u32 = buffer.height as u32;
         let stride: u32 = width * 4;
-        let current_id = self.current_id.fetch_add(1, Ordering::Relaxed) + 1;
-        let id = current_id;
+        let id = buffer.id;
         let format = 0;
 
         let mut offset: usize = 0;
@@ -82,7 +83,7 @@ impl WlClient {
         request.write_u16(&REQ_SIZE, &mut offset);
 
         request.write_u32(&id,          &mut offset);
-        request.write_u32(&shm_offset,  &mut offset);
+        request.write_u32(&byte_offset, &mut offset);
         request.write_u32(&width,       &mut offset);
         request.write_u32(&height,      &mut offset);
         request.write_u32(&stride,      &mut offset);
@@ -90,9 +91,6 @@ impl WlClient {
 
         self.socket.lock().unwrap().write(&request)?;
 
-        self.buffer_id.store(current_id, Ordering::Relaxed);
-
         Ok(())
     }
-
 }
