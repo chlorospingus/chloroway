@@ -17,7 +17,7 @@ impl Circle {
 
 impl Drawable for Circle {
     fn update(&mut self) {
-        self.x += 1;
+        // self.x += 1;
     }
 
     fn draw(&self, buffer: &wl_buffer, shm_pool: &mut ShmPool) {
