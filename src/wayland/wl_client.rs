@@ -1,6 +1,6 @@
 use std::{collections::HashMap, env::var, error::Error, fmt::Debug, io::{IoSliceMut, Write}, os::unix::net::{AncillaryData, SocketAncillary, UnixStream}, sync::{atomic::{AtomicBool, AtomicU32, Ordering}, mpsc, Arc, Mutex, RwLock}, thread::{self}, u32};
 
-use crate::{graphics::{circle::Circle, drawable::Drawable, rectangle::Rectangle}, wayland::{shm, surface::UnsetErr, vec_utils::WlMessage, wl_shm::wl_buffer}};
+use crate::{graphics::{circle::Circle, drawable::{premultiply, Drawable}, rectangle::Rectangle}, wayland::{shm, surface::UnsetErr, vec_utils::WlMessage, wl_shm::wl_buffer}};
 
 struct WlHeader {
     object: u32,
@@ -68,9 +68,9 @@ impl WlClient {
         if let Ok(mut drawables) = arc_wl_client.drawables.lock() {
             drawables.push(Rectangle::new(50, 50, 300, 300, 16, 0xffff8800).into());
             drawables.push(Rectangle::new(350, 50, 300, 300, 16, 0xffaa22aa).into());
-            drawables.push(Circle::new(350, 80, 25, 0xff00ffff).into());
-            drawables.push(Circle::new(350, 160, 25, 0x8800ffff).into());
-            drawables.push(Circle::new(350, 240, 25, 0x0000ffff).into());
+            drawables.push(Circle::new(350, 80, 25, premultiply(0xff00ffff)).into());
+            drawables.push(Circle::new(350, 160, 25, premultiply(0x8800ffff)).into());
+            drawables.push(Circle::new(350, 240, 25, premultiply(0x0000ffff)).into());
         }
         arc_wl_client.running.store(true, Ordering::Relaxed);
 

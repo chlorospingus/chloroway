@@ -1,5 +1,7 @@
 use libc::{c_void, ftruncate, mmap, munmap, shm_open, shm_unlink, MAP_FAILED, MAP_PRIVATE, MAP_SHARED, O_CREAT, O_EXCL, O_RDWR, PROT_READ, PROT_WRITE};
 
+use crate::graphics::drawable::color_over;
+
 #[derive(Clone)]
 pub struct ShmPool {
     pub fd:     i32,
@@ -69,25 +71,22 @@ impl ShmPool {
         Ok(())
     }
 
-    pub fn write(&mut self, data: &Vec<u32>, offset: usize) {
-        if offset + data.len() >= self.size {
+    pub fn write(&mut self, color: u32, offset: usize, len: usize) {
+        if offset + len/4 >= self.size {
             return;
         }
-        unsafe {
-            std::ptr::copy_nonoverlapping(
-                data.as_ptr() as *const u32, // src: data as *const u32
-                self.addr.offset(4*offset as isize) as *mut u32, // dst: ShmPool address as *mut u32
-                data.len()
-            );
-        }
+        for i in offset..offset+len { unsafe {
+            *((self.addr as *mut u32).offset(i as isize))
+                = color_over(color, self.read_pixel(i).unwrap());
+        }}
     }
 
-    pub fn write_pixel(&mut self, data: u32, offset: usize) {
+    pub fn write_pixel(&mut self, color: u32, offset: usize) {
         // TODO: Return error if out of bounds
         if offset + 3 > self.size {
             return;
         }
-        unsafe {*(self.addr.offset(offset as isize*4) as *mut u32) = data;}
+        unsafe {*((self.addr as *mut u32).offset(offset as isize)) = color;}
     }
 
     pub fn read_pixel(&self, offset: usize) -> Option<u32> {
