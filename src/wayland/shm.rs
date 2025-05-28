@@ -81,12 +81,34 @@ impl ShmPool {
         }}
     }
 
+    pub fn write_raw(&mut self, color: u32, offset: usize, len: usize) {
+        if offset + len/4 >= self.size {
+            return;
+        }
+        for i in offset..offset+len { unsafe {
+            *((self.addr as *mut u32).offset(i as isize)) = color;
+        }}
+    }
+
     pub fn write_pixel(&mut self, color: u32, offset: usize) {
         // TODO: Return error if out of bounds
         if offset + 3 > self.size {
             return;
         }
-        unsafe {*((self.addr as *mut u32).offset(offset as isize)) = color;}
+        unsafe {
+            *((self.addr as *mut u32).offset(offset as isize)) 
+            = color_over(color, self.read_pixel(offset).unwrap());
+        }
+    }
+
+    pub fn write_pixel_raw(&mut self, color: u32, offset: usize) {
+        // TODO: Return error if out of bounds
+        if offset + 3 > self.size {
+            return;
+        }
+        unsafe {
+            *((self.addr as *mut u32).offset(offset as isize)) = color;
+        }
     }
 
     pub fn read_pixel(&self, offset: usize) -> Option<u32> {

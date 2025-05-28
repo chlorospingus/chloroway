@@ -121,7 +121,7 @@ impl WlClient {
         self.wl_surface_attach(buffer)?;
         let mut drawables = self.drawables.lock()?;
         let mut shm_pool = self.shm_pool.lock()?;
-        shm_pool.write(0, 0, 800 * 800 * 2);
+        shm_pool.write_raw(0, 0, 800 * 800 * 2);
         for drawable in &mut *drawables {
             drawable.update();
             drawable.draw(buffer, &mut *shm_pool);

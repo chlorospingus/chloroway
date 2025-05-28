@@ -42,8 +42,8 @@ pub fn color_over(over: u32, under: u32) -> u32 {
     let g_under = (under & 0x0000ff00) >> 8;
     let b_over  = (over  & 0x000000ff) >> 0;
     let b_under = (under & 0x000000ff) >> 0;
-    ((a_over + (a_under as f64 * (0xff - a_over) as f64 / 0xff as f64) as u32).min(0xff) << 24).min(0xff) +
-    ((r_over + (r_under as f64 * (0xff - a_over) as f64 / 0xff as f64) as u32).min(0xff) << 16).min(0xff) +
+    ((a_over + (a_under as f64 * (0xff - a_over) as f64 / 0xff as f64) as u32).min(0xff) << 24) +
+    ((r_over + (r_under as f64 * (0xff - a_over) as f64 / 0xff as f64) as u32).min(0xff) << 16) +
     ((g_over + (g_under as f64 * (0xff - a_over) as f64 / 0xff as f64) as u32).min(0xff) << 8) +
     ((b_over + (b_under as f64 * (0xff - a_over) as f64 / 0xff as f64) as u32).min(0xff) << 0)
 }

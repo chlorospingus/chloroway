@@ -67,7 +67,7 @@ impl WlClient {
         arc_wl_client.wl_display_get_registry();
         if let Ok(mut drawables) = arc_wl_client.drawables.lock() {
             drawables.push(Rectangle::new(50, 50, 300, 300, 16, 0xffff8800).into());
-            drawables.push(Rectangle::new(350, 50, 300, 300, 16, 0xffaa22aa).into());
+            drawables.push(Rectangle::new(350, 50, 300, 300, 16, premultiply(0x77aa22aa)).into());
             drawables.push(Circle::new(350, 80, 25, premultiply(0xff00ffff)).into());
             drawables.push(Circle::new(350, 160, 25, premultiply(0x8800ffff)).into());
             drawables.push(Circle::new(350, 240, 25, premultiply(0x0000ffff)).into());
