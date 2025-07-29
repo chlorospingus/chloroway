@@ -10,26 +10,27 @@ struct WlHeader {
 
 pub struct WlClient {
     pub socket:             Mutex<UnixStream>,
-    pub running:            AtomicBool,
     pub current_id:         AtomicU32,
-    pub registry_id:        AtomicU32,
-    pub shm_id:             AtomicU32,
-    pub shmpool_id:         AtomicU32,
+    pub running:            AtomicBool,
     pub shm_pool:           Mutex<shm::ShmPool>,
-    pub compositor_id:      AtomicU32,
-    pub surface_id:         AtomicU32,
     pub active_buffer:      AtomicBool,
     pub buffer1:            Mutex<Option<wl_buffer>>,
     pub buffer2:            Mutex<Option<wl_buffer>>,
-    pub frame_hint_id:      AtomicU32,
-    pub xdg_wm_base_id:     AtomicU32,
-    pub layer_shell_id:     AtomicU32,
-    pub layer_surface_id:   AtomicU32,
-    pub seat_id:            AtomicU32,
-    pub keyboard_id:        AtomicU32,
     pub keymap_fd:          Mutex<Option<shm::ShmPool>>,
     pub keymap:             RwLock<Option<HashMap<u32, Vec<String>>>>,
     pub drawables:          Mutex<Vec<Box<dyn Drawable>>>,
+
+    pub registry_id:        AtomicU32,
+    pub shm_id:             AtomicU32,
+    pub shmpool_id:         AtomicU32,
+    pub seat_id:            AtomicU32,
+    pub keyboard_id:        AtomicU32,
+    pub compositor_id:      AtomicU32,
+    pub surface_id:         AtomicU32,
+    pub xdg_wm_base_id:     AtomicU32,
+    pub layer_shell_id:     AtomicU32,
+    pub layer_surface_id:   AtomicU32,
+    pub frame_hint_id:      AtomicU32,
 }
 
 impl WlClient {
@@ -130,6 +131,12 @@ impl WlClient {
         }
 
         drop(socket);
+
+        if let Some(buffer) = self.buffer1.lock()?.as_mut() {
+            if header.object == buffer.id && header.opcode == 0 { // wl_buffer::release
+
+            }
+        }
 
         if header.object == self.registry_id.load(Ordering::Relaxed) && header.opcode == 0 { // wl_registry::global
             self.wl_registry_global(&event)?;

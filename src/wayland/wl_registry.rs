@@ -35,13 +35,15 @@ impl WlClient {
             id:     current_id + 1,
             offset: 0,
             width:  800,
-            height: 800
+            height: 800,
+            ready:  true,
         });
         *buffer2 = Some(wl_buffer {
             id:     current_id + 2,
-            offset: 800 * 800, // pixel offset
+            offset: 800 * 800, // pixel offset in pool
             width:  800,
-            height: 800
+            height: 800,
+            ready:  true,
         });
         self.wl_shm_pool_create_buffer(buffer1.as_ref().unwrap())?;
         self.wl_shm_pool_create_buffer(buffer2.as_ref().unwrap())?;
@@ -84,37 +86,29 @@ impl WlClient {
         //     version,
         // );
 
-        // TODO: Collapse these into one line (probably using a macro)
+        macro_rules! bind_global {
+            ($global:tt) => {
+                let current_id = self.current_id.fetch_add(1, Ordering::Relaxed) + 1;
+                self.wl_registry_bind(&name, &interface, &version, &current_id)?;
+                self.$global.store(current_id, Ordering::Relaxed);
+                self.init_toplevel().unwrap_or_else(|err| {eprintln!("{}", err)});
+            };
+        }
 
         if interface == "wl_shm" {
-            let current_id = self.current_id.fetch_add(1, Ordering::Relaxed) + 1;
-            self.wl_registry_bind(&name, &interface, &version, &current_id)?;
-            self.shm_id.store(current_id, Ordering::Relaxed);
-            self.init_toplevel().unwrap_or_else(|err| {eprintln!("{}", err)});
+            bind_global!(shm_id);
         }
         else if interface == "wl_compositor" {
-            let current_id = self.current_id.fetch_add(1, Ordering::Relaxed) + 1;
-            self.wl_registry_bind(&name, &interface, &version, &current_id)?;
-            self.compositor_id.store(current_id, Ordering::Relaxed);
-            self.init_toplevel().unwrap_or_else(|err| {eprintln!("{}", err)});
+            bind_global!(compositor_id);
         }
         else if interface == "xdg_wm_base" {
-            let current_id = self.current_id.fetch_add(1, Ordering::Relaxed) + 1;
-            self.wl_registry_bind(&name, &interface, &version, &current_id)?;
-            self.xdg_wm_base_id.store(current_id, Ordering::Relaxed);
-            self.init_toplevel().unwrap_or_else(|err| {eprintln!("{}", err)});
+            bind_global!(xdg_wm_base_id);
         }
         else if interface == "zwlr_layer_shell_v1" {
-            let current_id = self.current_id.fetch_add(1, Ordering::Relaxed) + 1;
-            self.wl_registry_bind(&name, &interface, &version, &current_id)?;
-            self.layer_shell_id.store(current_id, Ordering::Relaxed);
-            self.init_toplevel().unwrap_or_else(|err| {eprintln!("{}", err)});
+            bind_global!(layer_shell_id);
         }
         else if interface == "wl_seat" {
-            let current_id = self.current_id.fetch_add(1, Ordering::Relaxed) + 1;
-            self.wl_registry_bind(&name, &interface, &version, &current_id)?;
-            self.seat_id.store(current_id, Ordering::Relaxed);
-            self.init_toplevel().unwrap_or_else(|err| {eprintln!("{}", err)});
+            bind_global!(seat_id);
         }
 
         Ok(())

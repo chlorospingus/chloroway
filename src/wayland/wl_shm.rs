@@ -10,6 +10,7 @@ pub struct wl_buffer {
     pub offset:     usize,
     pub width:      usize,
     pub height:     usize,
+    pub ready:      bool,
 }
 
 impl WlClient {
